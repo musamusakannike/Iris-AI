@@ -82,7 +82,7 @@ export class WebSocketService {
         const now = Date.now();
         const lastTime = this.lastProcessedTimestamp.get(ws) || 0;
 
-        // Throttle frame processing to prevent overload (e.g. 1 frame every 1.5 seconds max)
+        // Throttle frame processing to prevent overload (e.g. 1 frame every 1.4 seconds max)
         if (now - lastTime < 1400) {
           return;
         }
@@ -96,10 +96,19 @@ export class WebSocketService {
         }
 
         try {
-          const result = await geminiService.analyzeAssistiveImage(
+          const result = await geminiService.analyzeAssistiveImageStream(
             imageBase64,
             'image/jpeg',
-            mode
+            mode,
+            undefined,
+            (chunkText) => {
+              this.sendToClient(ws, {
+                type: 'AI_STREAM_CHUNK',
+                mode,
+                chunk: chunkText,
+                timestamp: new Date().toISOString(),
+              });
+            }
           );
 
           this.sendToClient(ws, {
@@ -110,6 +119,7 @@ export class WebSocketService {
             hazardLevel: result.hazardLevel,
             hazardDetails: result.hazardDetails,
             detectedEntities: result.detectedEntities,
+            tags: result.tags,
             timestamp: new Date().toISOString(),
           });
 
@@ -155,11 +165,20 @@ export class WebSocketService {
         });
 
         try {
-          const result = await geminiService.analyzeAssistiveImage(
+          const result = await geminiService.analyzeAssistiveImageStream(
             imageBase64 || '',
             'image/jpeg',
             mode,
-            question
+            question,
+            (chunkText) => {
+              this.sendToClient(ws, {
+                type: 'AI_STREAM_CHUNK',
+                mode: 'ask',
+                prompt: question,
+                chunk: chunkText,
+                timestamp: new Date().toISOString(),
+              });
+            }
           );
 
           this.sendToClient(ws, {
@@ -171,6 +190,7 @@ export class WebSocketService {
             hazardLevel: result.hazardLevel,
             hazardDetails: result.hazardDetails,
             detectedEntities: result.detectedEntities,
+            tags: result.tags,
             timestamp: new Date().toISOString(),
           });
 
