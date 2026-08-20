@@ -4,6 +4,7 @@ export interface IUserPreference extends Document {
   deviceId: string;
   speechRate: number; // 0.5 to 2.0 (default 1.0)
   speechPitch: number; // 0.5 to 1.5 (default 1.0)
+  voiceIdentifier?: string;
   verbosity: 'concise' | 'detailed';
   hazardAlertSound: boolean;
   hazardVibration: boolean;
@@ -33,6 +34,10 @@ const UserPreferenceSchema = new Schema<IUserPreference>(
       default: 1.0,
       min: 0.5,
       max: 1.5,
+    },
+    voiceIdentifier: {
+      type: String,
+      default: '',
     },
     verbosity: {
       type: String,

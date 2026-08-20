@@ -22,6 +22,7 @@ export interface UserSettings {
   deviceId: string;
   speechRate: number;
   speechPitch: number;
+  voiceIdentifier?: string;
   verbosity: 'concise' | 'detailed';
   hazardAlertSound: boolean;
   hazardVibration: boolean;

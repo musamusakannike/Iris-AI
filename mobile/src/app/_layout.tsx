@@ -12,12 +12,13 @@ import { irisWebSocket } from '../services/websocket';
 import { useIrisStore } from '../store/useIrisStore';
 
 export default function RootLayout() {
-  const { fetchHistory } = useIrisStore();
+  const { fetchHistory, loadSettings } = useIrisStore();
 
   useEffect(() => {
-    // Initialize background services
+    // Initialize background services and load preferences
     irisWebSocket.connect();
     fetchHistory();
+    loadSettings();
 
     return () => {
       irisWebSocket.disconnect();

@@ -1,9 +1,12 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService, AssistiveMode, UserSettings, VisionResponse } from '../services/api';
 import { speechService } from '../services/speech';
 import { hapticService } from '../services/haptics';
 
 export type AIState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
+
+const SETTINGS_STORAGE_KEY = '@iris_user_settings_v1';
 
 interface IrisState {
   activeMode: AssistiveMode;
@@ -31,6 +34,7 @@ interface IrisState {
   addHistoryItem: (item: VisionResponse) => void;
   deleteHistoryItem: (id: string) => Promise<void>;
   clearAllHistory: () => Promise<void>;
+  loadSettings: () => Promise<void>;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
   speakDescription: (text: string) => Promise<void>;
   stopSpeaking: () => Promise<void>;
@@ -50,6 +54,7 @@ export const useIrisStore = create<IrisState>((set, get) => ({
     deviceId: 'default_device',
     speechRate: 1.0,
     speechPitch: 1.0,
+    voiceIdentifier: undefined,
     verbosity: 'concise',
     hazardAlertSound: true,
     hazardVibration: true,
@@ -157,11 +162,42 @@ export const useIrisStore = create<IrisState>((set, get) => ({
     speechService.announce('History cleared');
   },
 
+  loadSettings: async () => {
+    try {
+      // 1. Try loading from AsyncStorage
+      const cached = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const merged = { ...get().settings, ...parsed };
+        set({ settings: merged });
+        speechService.setPreferences(merged.speechRate, merged.speechPitch, merged.voiceIdentifier);
+      }
+
+      // 2. Fetch latest from API if online
+      const remote = await apiService.getSettings(get().settings.deviceId);
+      if (remote) {
+        const merged = { ...get().settings, ...remote };
+        set({ settings: merged });
+        speechService.setPreferences(merged.speechRate, merged.speechPitch, merged.voiceIdentifier);
+        await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+      }
+    } catch (e) {
+      console.warn('Could not load settings:', e);
+    }
+  },
+
   updateSettings: async (newSettings: Partial<UserSettings>) => {
     const updated = { ...get().settings, ...newSettings };
     set({ settings: updated });
-    speechService.setPreferences(updated.speechRate, updated.speechPitch);
-    await apiService.updateSettings(updated);
+    speechService.setPreferences(updated.speechRate, updated.speechPitch, updated.voiceIdentifier);
+    
+    try {
+      await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    try {
+      await apiService.updateSettings(updated);
+    } catch {}
   },
 
   speakDescription: async (text: string) => {
@@ -171,6 +207,7 @@ export const useIrisStore = create<IrisState>((set, get) => ({
     await speechService.speak(text, {
       rate: get().settings.speechRate,
       pitch: get().settings.speechPitch,
+      voice: get().settings.voiceIdentifier,
       onDone: () => {
         set({ aiState: 'idle' });
       },
