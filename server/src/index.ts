@@ -12,24 +12,23 @@ const startServer = async () => {
   // Initialize WebSocket Server on /ws
   webSocketService.init(server, '/ws');
 
-  // Attempt database connection
-  try {
-    await connectDB();
-  } catch (error) {
-    logger.warn('⚠️ MongoDB connection could not be established on startup. Server running in degraded mode.');
-  }
-
+  // Start HTTP & WebSocket server immediately
   server.listen(env.PORT, () => {
-    logger.info(`🚀 Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
-    logger.info(`👉 API Health Endpoint: http://localhost:${env.PORT}/api/v1/health`);
-    logger.info(`🔌 WebSocket Endpoint: ws://localhost:${env.PORT}/ws`);
+    logger.info(`🚀 IRIS AI Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
+    logger.info(`👉 Health: http://localhost:${env.PORT}/api/v1/health`);
+    logger.info(`👉 Vision API: http://localhost:${env.PORT}/api/v1/vision/analyze`);
+    logger.info(`🔌 WebSocket: ws://localhost:${env.PORT}/ws`);
+  });
+
+  // Attempt database connection in background without blocking server startup
+  connectDB().catch(() => {
+    logger.warn('⚠️ MongoDB connection could not be established on startup. Server running with memory-resilient storage.');
   });
 
   // Graceful shutdown handling
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}. Gracefully shutting down server...`);
 
-    // Close WebSocket connections first
     await webSocketService.close();
 
     server.close(async () => {
@@ -39,11 +38,10 @@ const startServer = async () => {
       process.exit(0);
     });
 
-    // Force close after 10 seconds if hanging
     setTimeout(() => {
       logger.error('Could not close connections in time, forcefully shutting down');
       process.exit(1);
-    }, 10000);
+    }, 5000);
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

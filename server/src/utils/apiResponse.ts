@@ -38,6 +38,27 @@ export class ApiResponse {
     };
     return res.status(statusCode).json(payload);
   }
+
+  static badRequest(res: Response, message = 'Bad Request', error?: unknown): Response {
+    return ApiResponse.error(res, message, 400, error);
+  }
+
+  static notFound(res: Response, message = 'Resource Not Found'): Response {
+    return ApiResponse.error(res, message, 404);
+  }
+
+  static serverError(res: Response, message = 'Internal Server Error', error?: unknown): Response {
+    return ApiResponse.error(res, message, 500, error);
+  }
+
+  static paginated<T>(
+    res: Response,
+    items: T[],
+    pagination: { page: number; limit: number; total: number; totalPages: number },
+    message = 'Success'
+  ): Response {
+    return ApiResponse.success(res, items, message, 200, { pagination });
+  }
 }
 
 export class ApiError extends Error {
