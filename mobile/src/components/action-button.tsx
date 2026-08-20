@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -6,28 +6,31 @@ import {
   ViewStyle,
   TextStyle,
   StyleProp,
+  View,
 } from 'react-native';
-import { GlassSurface } from './glass-surface';
-import { colors } from '../theme/colors';
+import { colors, brutalistShadow } from '../theme/colors';
 import { hapticService } from '../services/haptics';
 
 interface ActionButtonProps {
   label: string;
   onPress: () => void;
   icon?: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'hazard' | 'outline';
+  iconPosition?: 'left' | 'right';
+  variant?: 'primary' | 'secondary' | 'hazard' | 'outline' | 'dark';
   size?: 'small' | 'medium' | 'large';
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   disabled?: boolean;
+  fullWidth?: boolean;
 }
 
 export const ActionButton: React.FC<ActionButtonProps> = ({
   label,
   onPress,
   icon,
+  iconPosition = 'left',
   variant = 'primary',
   size = 'large',
   style,
@@ -35,7 +38,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   accessibilityLabel,
   accessibilityHint,
   disabled = false,
+  fullWidth = false,
 }) => {
+  const [isPressed, setIsPressed] = useState(false);
+
   const handlePress = () => {
     if (disabled) return;
     hapticService.tap();
@@ -46,28 +52,29 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     switch (variant) {
       case 'primary':
         return {
-          surface: styles.primarySurface,
+          container: styles.primaryContainer,
           text: styles.primaryText,
-          highlight: true,
-        };
-      case 'hazard':
-        return {
-          surface: styles.hazardSurface,
-          text: styles.hazardText,
-          highlight: true,
         };
       case 'secondary':
         return {
-          surface: styles.secondarySurface,
+          container: styles.secondaryContainer,
           text: styles.secondaryText,
-          highlight: false,
+        };
+      case 'hazard':
+        return {
+          container: styles.hazardContainer,
+          text: styles.hazardText,
+        };
+      case 'dark':
+        return {
+          container: styles.darkContainer,
+          text: styles.darkText,
         };
       case 'outline':
       default:
         return {
-          surface: styles.outlineSurface,
+          container: styles.outlineContainer,
           text: styles.outlineText,
-          highlight: false,
         };
     }
   };
@@ -79,22 +86,25 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
           minHeight: 44,
           paddingVertical: 8,
           paddingHorizontal: 16,
-          fontSize: 14,
+          fontSize: 13,
+          shadowOffset: 2,
         };
       case 'medium':
         return {
           minHeight: 52,
           paddingVertical: 12,
-          paddingHorizontal: 20,
-          fontSize: 16,
+          paddingHorizontal: 22,
+          fontSize: 15,
+          shadowOffset: 3,
         };
       case 'large':
       default:
         return {
-          minHeight: 64, // Oversized for easy access by visually impaired users
-          paddingVertical: 16,
-          paddingHorizontal: 24,
-          fontSize: 18,
+          minHeight: 60, // Oversized for accessible high visibility
+          paddingVertical: 15,
+          paddingHorizontal: 26,
+          fontSize: 16,
+          shadowOffset: 4,
         };
     }
   };
@@ -109,89 +119,118 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       accessibilityLabel={accessibilityLabel || label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
-      activeOpacity={0.75}
+      activeOpacity={0.85}
+      onPressIn={() => setIsPressed(true)}
+      onPressOut={() => setIsPressed(false)}
       onPress={handlePress}
       disabled={disabled}
-      style={[styles.touchable, { minHeight: sStyle.minHeight }, style]}
+      style={[
+        styles.baseButton,
+        vStyle.container,
+        {
+          minHeight: sStyle.minHeight,
+          paddingVertical: sStyle.paddingVertical,
+          paddingHorizontal: sStyle.paddingHorizontal,
+          transform: isPressed
+            ? [{ translateX: sStyle.shadowOffset }, { translateY: sStyle.shadowOffset }]
+            : [{ translateX: 0 }, { translateY: 0 }],
+        },
+        fullWidth && { width: '100%' },
+        disabled && styles.disabledButton,
+        style,
+      ]}
     >
-      <GlassSurface
+      {icon && iconPosition === 'left' && (
+        <View style={styles.leftIcon}>{icon}</View>
+      )}
+      <Text
         style={[
-          styles.surface,
-          vStyle.surface,
-          { paddingVertical: sStyle.paddingVertical, paddingHorizontal: sStyle.paddingHorizontal },
-          disabled && styles.disabledSurface,
+          styles.baseText,
+          vStyle.text,
+          { fontSize: sStyle.fontSize },
+          disabled && styles.disabledText,
+          textStyle,
         ]}
-        glassEffectStyle="regular"
-        highlight={vStyle.highlight}
       >
-        {icon}
-        <Text
-          style={[
-            styles.text,
-            vStyle.text,
-            { fontSize: sStyle.fontSize },
-            disabled && styles.disabledText,
-            textStyle,
-          ]}
-        >
-          {label}
-        </Text>
-      </GlassSurface>
+        {label}
+      </Text>
+      {icon && iconPosition === 'right' && (
+        <View style={styles.rightIcon}>{icon}</View>
+      )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  touchable: {
-    borderRadius: 24,
-    justifyContent: 'center',
-  },
-  surface: {
+  baseButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 24,
-    gap: 12,
+    borderWidth: 2.5,
+    borderColor: '#0A0E11',
+    borderRadius: 4, // A1 Academy sharp brutalist aesthetic
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
-  text: {
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  baseText: {
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    textAlign: 'center',
   },
-  primarySurface: {
-    backgroundColor: 'rgba(56, 189, 248, 0.25)',
-    borderColor: colors.primary,
-    borderWidth: 1.5,
+  leftIcon: {
+    marginRight: 8,
+  },
+  rightIcon: {
+    marginLeft: 8,
+  },
+  primaryContainer: {
+    backgroundColor: colors.primary,
+    borderColor: '#0A0E11',
   },
   primaryText: {
-    color: '#FFFFFF',
+    color: '#0A0E11', // High contrast black text on primary coral (Academy style)
   },
-  hazardSurface: {
-    backgroundColor: 'rgba(239, 68, 68, 0.25)',
-    borderColor: colors.hazardHigh,
-    borderWidth: 1.5,
+  secondaryContainer: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#0A0E11',
+  },
+  secondaryText: {
+    color: '#0A0E11',
+  },
+  hazardContainer: {
+    backgroundColor: colors.hazardHigh,
+    borderColor: '#0A0E11',
   },
   hazardText: {
     color: '#FFFFFF',
   },
-  secondarySurface: {
-    backgroundColor: 'rgba(30, 41, 59, 0.75)',
-    borderColor: colors.glassBorder,
+  darkContainer: {
+    backgroundColor: colors.black,
+    borderColor: colors.primary,
   },
-  secondaryText: {
-    color: colors.textPrimary,
+  darkText: {
+    color: '#FFFFFF',
   },
-  outlineSurface: {
+  outlineContainer: {
     backgroundColor: 'transparent',
-    borderColor: colors.glassBorderHighlight,
+    borderColor: colors.primary,
   },
   outlineText: {
     color: colors.primary,
   },
-  disabledSurface: {
-    opacity: 0.5,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+  disabledButton: {
+    opacity: 0.45,
+    backgroundColor: '#263038',
+    borderColor: '#181F26',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   disabledText: {
     color: colors.textMuted,
   },
 });
+

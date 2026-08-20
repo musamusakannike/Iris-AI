@@ -298,28 +298,47 @@ export default function IrisHomeScreen() {
           enableTorch={torchOn}
           autofocus="on"
         />
+
+        {/* Technical Viewfinder Corner Accents (Academy Industrial Aesthetic) */}
+        <View style={styles.viewfinderOverlay} pointerEvents="none">
+          <View style={[styles.cornerBracket, styles.cornerTL]} />
+          <View style={[styles.cornerBracket, styles.cornerTR]} />
+          <View style={[styles.cornerBracket, styles.cornerBL]} />
+          <View style={[styles.cornerBracket, styles.cornerBR]} />
+        </View>
       </Pressable>
 
-      {/* Floating Liquid Glass Top HUD */}
+      {/* Top HUD: Academy Tech Bar + Actions + Mode Selector */}
       <SafeAreaView style={styles.topHudContainer} edges={['top']}>
-        <GlassSurface style={styles.topBar} glassEffectStyle="regular">
-          {/* Logo & Status Badge */}
-          <View style={styles.logoRow}>
-            <View style={styles.statusIndicator}>
+        {/* Technical Ruler Ticks Line */}
+        <View style={styles.rulerBar}>
+          <View style={styles.rulerTicksRow}>
+            {[...Array(24)].map((_, i) => (
               <View
+                key={i}
                 style={[
-                  styles.statusDot,
-                  {
-                    backgroundColor: isLiveScanning ? colors.safe : colors.primary,
-                  },
+                  styles.rulerTick,
+                  i % 4 === 0 ? styles.rulerTickMajor : styles.rulerTickMinor,
                 ]}
               />
-              <Text style={styles.logoText}>IRIS AI</Text>
+            ))}
+          </View>
+        </View>
+
+        {/* Main Top Action Header */}
+        <View style={styles.topBar}>
+          {/* Logo & Hub Status Badge */}
+          <View style={styles.logoRow}>
+            <View style={styles.statusIndicator}>
+              <Text style={styles.logoText}>IRIS</Text>
+              <View style={styles.logoBadge}>
+                <Text style={styles.logoBadgeText}>AI</Text>
+              </View>
             </View>
             {isLiveScanning && (
               <View style={styles.liveBadge}>
-                <Radio size={12} color="#FFFFFF" />
-                <Text style={styles.liveBadgeText}>LIVE SCAN</Text>
+                <Radio size={10} color="#FFFFFF" />
+                <Text style={styles.liveBadgeText}>LIVE</Text>
               </View>
             )}
           </View>
@@ -332,12 +351,12 @@ export default function IrisHomeScreen() {
               accessibilityLabel={`Flashlight ${torchOn ? 'on' : 'off'}`}
               accessibilityHint="Toggles camera light to illuminate dark scenes"
               onPress={toggleTorch}
-              style={styles.iconButton}
+              style={[styles.hudButton, torchOn && styles.hudButtonActive]}
             >
               {torchOn ? (
-                <Flashlight size={22} color={colors.hazardLow} />
+                <Flashlight size={18} color="#0A0E11" />
               ) : (
-                <FlashlightOff size={22} color={colors.textSecondary} />
+                <FlashlightOff size={18} color="#FFFFFF" />
               )}
             </TouchableOpacity>
 
@@ -347,9 +366,9 @@ export default function IrisHomeScreen() {
               accessibilityLabel="How to use guide"
               accessibilityHint="Opens voice-narrated tutorial"
               onPress={() => router.push('/guide')}
-              style={styles.iconButton}
+              style={styles.hudButton}
             >
-              <HelpCircle size={22} color={colors.textSecondary} />
+              <HelpCircle size={18} color="#FFFFFF" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -358,9 +377,9 @@ export default function IrisHomeScreen() {
               accessibilityLabel="Scan history"
               accessibilityHint="View past descriptions and questions"
               onPress={() => router.push('/history')}
-              style={styles.iconButton}
+              style={styles.hudButton}
             >
-              <History size={22} color={colors.textSecondary} />
+              <History size={18} color="#FFFFFF" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -369,14 +388,14 @@ export default function IrisHomeScreen() {
               accessibilityLabel="Settings"
               accessibilityHint="Adjust speech speed and accessibility preferences"
               onPress={() => router.push('/settings')}
-              style={styles.iconButton}
+              style={styles.hudButton}
             >
-              <Settings size={22} color={colors.textSecondary} />
+              <Settings size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </GlassSurface>
+        </View>
 
-        {/* Mode Selector */}
+        {/* Mode Selector (Category Pills) */}
         <ModeSelector activeMode={activeMode} onSelectMode={setActiveMode} />
       </SafeAreaView>
 
@@ -401,58 +420,50 @@ export default function IrisHomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Continuous live scan: ${isLiveScanning ? 'active' : 'inactive'}`}
             accessibilityHint="Passively scans and announces changes every few seconds"
+            activeOpacity={0.8}
             onPress={toggleLiveScanning}
-            style={styles.auxButton}
+            style={[
+              styles.auxButton,
+              isLiveScanning ? styles.liveButtonActive : styles.liveButtonInactive,
+            ]}
           >
-            <GlassSurface
+            <Radio
+              size={18}
+              color={isLiveScanning ? '#FFFFFF' : colors.textSecondary}
+            />
+            <Text
               style={[
-                styles.auxSurface,
-                isLiveScanning && styles.auxSurfaceActive,
+                styles.auxText,
+                isLiveScanning ? { color: '#FFFFFF' } : { color: colors.textSecondary },
               ]}
-              glassEffectStyle="regular"
-              highlight={isLiveScanning}
             >
-              <Radio
-                size={22}
-                color={isLiveScanning ? colors.safe : colors.textMuted}
-              />
-              <Text
-                style={[
-                  styles.auxText,
-                  isLiveScanning ? { color: colors.safe, fontWeight: '700' } : { color: colors.textMuted },
-                ]}
-              >
-                {isLiveScanning ? 'Stop Live' : 'Live Mode'}
-              </Text>
-            </GlassSurface>
+              {isLiveScanning ? 'LIVE ON' : 'LIVE'}
+            </Text>
           </TouchableOpacity>
 
-          {/* Giant Describe Scene Button */}
+          {/* Giant Describe Scene Button (A1 Academy Primary CTA) */}
           <TouchableOpacity
             accessible={true}
             accessibilityRole="button"
             accessibilityLabel="Describe scene right now"
             accessibilityHint="Analyzes the camera view and speaks out loud"
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             onPress={handleDescribePress}
             disabled={isProcessing}
-            style={styles.mainDescribeTouchable}
+            style={[
+              styles.mainDescribeButton,
+              isProcessing && styles.mainDescribeButtonProcessing,
+            ]}
           >
-            <GlassSurface
-              style={styles.mainDescribeSurface}
-              glassEffectStyle="regular"
-              highlight={true}
-            >
-              <VoicePulseIndicator state={aiState} size={54} />
-              <View style={styles.describeTextColumn}>
-                <Text style={styles.mainDescribeTitle}>
-                  {isProcessing ? 'Analyzing...' : 'Describe Scene'}
-                </Text>
-                <Text style={styles.mainDescribeSubtitle}>
-                  {activeMode.toUpperCase()} • TAP TO HEAR
-                </Text>
-              </View>
-            </GlassSurface>
+            <VoicePulseIndicator state={aiState} size={48} />
+            <View style={styles.describeTextColumn}>
+              <Text style={styles.mainDescribeTitle}>
+                {isProcessing ? 'ANALYZING...' : 'DESCRIBE SCENE'}
+              </Text>
+              <Text style={styles.mainDescribeSubtitle}>
+                {activeMode.toUpperCase()} • TAP TO HEAR
+              </Text>
+            </View>
           </TouchableOpacity>
 
           {/* Ask Iris Voice Mic Button */}
@@ -461,30 +472,25 @@ export default function IrisHomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={isListening ? 'Stop listening' : 'Ask Iris voice question'}
             accessibilityHint="Speak a question about what is in front of you"
+            activeOpacity={0.8}
             onPress={handleMicPress}
-            style={styles.auxButton}
+            style={[
+              styles.auxButton,
+              isListening ? styles.micButtonActive : styles.micButtonInactive,
+            ]}
           >
-            <GlassSurface
+            <Mic
+              size={20}
+              color={isListening ? '#0A0E11' : colors.primary}
+            />
+            <Text
               style={[
-                styles.auxSurface,
-                isListening && styles.micSurfaceActive,
+                styles.auxText,
+                isListening ? { color: '#0A0E11' } : { color: colors.primary },
               ]}
-              glassEffectStyle="regular"
-              highlight={isListening}
             >
-              <Mic
-                size={24}
-                color={isListening ? '#FFFFFF' : colors.primary}
-              />
-              <Text
-                style={[
-                  styles.auxText,
-                  isListening ? { color: '#FFFFFF', fontWeight: '700' } : { color: colors.primary },
-                ]}
-              >
-                {isListening ? 'Listening' : 'Ask Voice'}
-              </Text>
-            </GlassSurface>
+              {isListening ? 'LISTENING' : 'ASK VOICE'}
+            </Text>
           </TouchableOpacity>
         </SafeAreaView>
       </View>
@@ -506,21 +512,63 @@ const styles = StyleSheet.create({
   },
   permissionTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: colors.textPrimary,
+    fontWeight: '900',
+    color: '#FFFFFF',
     marginBottom: 12,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   permissionDescription: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   permissionText: {
-    color: colors.textPrimary,
+    color: '#FFFFFF',
     marginTop: 16,
     fontSize: 16,
+    fontWeight: '700',
+  },
+  viewfinderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 24,
+    justifyContent: 'space-between',
+  },
+  cornerBracket: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderColor: colors.primary,
+  },
+  cornerTL: {
+    top: 140,
+    left: 20,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+  },
+  cornerTR: {
+    top: 140,
+    right: 20,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+  },
+  cornerBL: {
+    bottom: 180,
+    left: 20,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+  },
+  cornerBR: {
+    bottom: 180,
+    right: 20,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
   },
   topHudContainer: {
     position: 'absolute',
@@ -529,63 +577,111 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
   },
+  rulerBar: {
+    width: '100%',
+    height: 12,
+    backgroundColor: '#0A0E11',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 99, 78, 0.4)',
+  },
+  rulerTicksRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rulerTick: {
+    backgroundColor: colors.primary,
+  },
+  rulerTickMajor: {
+    width: 2,
+    height: 8,
+  },
+  rulerTickMinor: {
+    width: 1,
+    height: 4,
+    opacity: 0.7,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: 16,
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 4,
+    backgroundColor: '#0A0E11',
+    borderWidth: 2,
+    borderColor: '#2C3742',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    gap: 4,
   },
   logoText: {
     fontSize: 18,
     fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: 1,
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+  },
+  logoBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 2,
+  },
+  logoBadgeText: {
+    color: '#0A0E11',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: colors.safe,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 2,
   },
   liveBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   hudActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
-  iconButton: {
-    padding: 6,
-    minWidth: 40,
-    minHeight: 40,
+  hudButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 3,
+    backgroundColor: '#181F26',
+    borderWidth: 1.5,
+    borderColor: '#2C3742',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  hudButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: '#0A0E11',
   },
   bottomDeck: {
     position: 'absolute',
@@ -602,65 +698,83 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 8,
   },
-  mainDescribeTouchable: {
+  mainDescribeButton: {
     flex: 1,
-    minHeight: 76,
-  },
-  mainDescribeSurface: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    borderColor: colors.primary,
-    borderWidth: 1.5,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 4,
+    backgroundColor: colors.primary, // A1 Primary coral
+    borderWidth: 2.5,
+    borderColor: '#0A0E11',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+    gap: 10,
+    minHeight: 68,
+  },
+  mainDescribeButtonProcessing: {
+    backgroundColor: colors.primaryDark,
   },
   describeTextColumn: {
     flex: 1,
     justifyContent: 'center',
   },
   mainDescribeTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: 0.3,
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0A0E11', // A1 contrast black text on primary
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   mainDescribeSubtitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#381611',
     marginTop: 2,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   auxButton: {
-    minHeight: 76,
-    justifyContent: 'center',
-  },
-  auxSurface: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#0A0E11',
     gap: 4,
-    minWidth: 70,
-    minHeight: 76,
+    minWidth: 68,
+    minHeight: 68,
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2.5, height: 2.5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
-  auxSurfaceActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderColor: colors.safe,
-    borderWidth: 1.5,
+  liveButtonInactive: {
+    backgroundColor: '#181F26',
+    borderColor: '#2C3742',
   },
-  micSurfaceActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.35)',
-    borderColor: colors.primary,
-    borderWidth: 1.5,
+  liveButtonActive: {
+    backgroundColor: colors.safe,
+    borderColor: '#0A0E11',
+  },
+  micButtonInactive: {
+    backgroundColor: '#181F26',
+    borderColor: '#2C3742',
+  },
+  micButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: '#0A0E11',
   },
   auxText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
 });
+

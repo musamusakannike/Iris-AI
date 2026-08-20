@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Compass, BookOpen, ShieldAlert, Palette } from 'lucide-react-native';
-import { GlassSurface } from './glass-surface';
-import { colors } from '../theme/colors';
+import { colors, brutalistShadow } from '../theme/colors';
 import { AssistiveMode } from '../services/api';
+import { hapticService } from '../services/haptics';
 
 interface ModeSelectorProps {
   activeMode: AssistiveMode;
@@ -13,37 +13,42 @@ interface ModeSelectorProps {
 const MODES: Array<{
   id: AssistiveMode;
   label: string;
+  categoryTag: string;
   hint: string;
   icon: React.FC<{ size: number; color: string }>;
   accentColor: string;
 }> = [
   {
     id: 'explore',
-    label: 'Explore',
+    label: 'EXPLORE',
+    categoryTag: 'SPATIAL',
     hint: 'Describes your general surroundings and spatial layout',
     icon: Compass,
-    accentColor: colors.primary,
+    accentColor: colors.primary, // #FF634E Coral
   },
   {
     id: 'read',
-    label: 'Read Text',
+    label: 'READ TEXT',
+    categoryTag: 'OCR',
     hint: 'Reads documents, signs, labels, and text out loud',
     icon: BookOpen,
-    accentColor: '#38BDF8',
+    accentColor: colors.droneTech, // #2563EB Tech Blue
   },
   {
     id: 'hazard',
-    label: 'Hazards',
+    label: 'HAZARDS',
+    categoryTag: 'SAFETY',
     hint: 'Scans strictly for steps, drop-offs, and obstacles in your path',
     icon: ShieldAlert,
-    accentColor: colors.hazardHigh,
+    accentColor: colors.hazardHigh, // #EF4444 Hazard Red
   },
   {
     id: 'color',
-    label: 'Colors',
+    label: 'COLORS',
+    categoryTag: 'VISION',
     hint: 'Identifies clothing colors and objects',
     icon: Palette,
-    accentColor: '#A855F7',
+    accentColor: colors.engineering, // #7C3AED Purple
   },
 ];
 
@@ -51,6 +56,11 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
   activeMode,
   onSelectMode,
 }) => {
+  const handleSelect = (mode: AssistiveMode) => {
+    hapticService.selection();
+    onSelectMode(mode);
+  };
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
@@ -69,35 +79,39 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
               accessibilityRole="button"
               accessibilityLabel={`${item.label} mode, ${isActive ? 'selected' : 'not selected'}`}
               accessibilityHint={item.hint}
-              activeOpacity={0.7}
-              onPress={() => onSelectMode(item.id)}
-              style={styles.pillTouchable}
+              activeOpacity={0.8}
+              onPress={() => handleSelect(item.id)}
+              style={[
+                styles.pillTouchable,
+                isActive ? styles.pillActive : styles.pillInactive,
+                isActive && {
+                  borderTopColor: item.accentColor,
+                },
+              ]}
             >
-              <GlassSurface
+              <View
                 style={[
-                  styles.pillSurface,
-                  isActive && {
-                    backgroundColor: 'rgba(56, 189, 248, 0.22)',
-                    borderColor: item.accentColor,
-                    borderWidth: 1.5,
+                  styles.iconBox,
+                  {
+                    backgroundColor: isActive ? item.accentColor : '#232C35',
                   },
                 ]}
-                glassEffectStyle="regular"
-                highlight={isActive}
               >
                 <IconComponent
-                  size={18}
-                  color={isActive ? item.accentColor : colors.textMuted}
+                  size={15}
+                  color={isActive ? '#0A0E11' : colors.textMuted}
                 />
+              </View>
+              <View style={styles.textColumn}>
                 <Text
                   style={[
                     styles.pillLabel,
-                    isActive ? { color: colors.textPrimary, fontWeight: '700' } : { color: colors.textMuted },
+                    isActive ? styles.pillLabelActive : styles.pillLabelInactive,
                   ]}
                 >
                   {item.label}
                 </Text>
-              </GlassSurface>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -108,7 +122,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginVertical: 8,
+    marginVertical: 6,
   },
   scrollContent: {
     flexDirection: 'row',
@@ -117,21 +131,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   pillTouchable: {
-    minHeight: 44, // Apple HIG min touch target
-    justifyContent: 'center',
-  },
-  pillSurface: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 4, // Sharp brutalist badge
+    borderWidth: 2,
+    borderColor: '#0A0E11',
     gap: 8,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    minHeight: 46,
+  },
+  pillActive: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 4,
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+  pillInactive: {
+    backgroundColor: '#181F26',
+    borderColor: '#2C3742',
+  },
+  iconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textColumn: {
+    justifyContent: 'center',
   },
   pillLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  pillLabelActive: {
+    color: '#0A0E11',
+  },
+  pillLabelInactive: {
     color: colors.textSecondary,
   },
 });
+

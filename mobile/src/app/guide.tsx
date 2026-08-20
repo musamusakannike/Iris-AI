@@ -18,42 +18,50 @@ import {
   Hand,
   Sparkles,
 } from 'lucide-react-native';
-import { GlassSurface } from '../components/glass-surface';
-import { ActionButton } from '../components/action-button';
-import { colors } from '../theme/colors';
+import { colors, brutalistShadow } from '../theme/colors';
 import { speechService } from '../services/speech';
 import { hapticService } from '../services/haptics';
 
 const GUIDE_SECTIONS = [
   {
-    title: '1. Instant Scene Description',
+    step: '01',
+    title: 'INSTANT SCENE DESCRIPTION',
+    category: 'SPATIAL VISION',
     icon: Eye,
-    color: colors.primary,
-    body: 'Point your camera at anything. Tap the large "Describe Scene" button at the bottom of the screen or double-tap anywhere on the camera viewfinder. IRIS will immediately analyze and speak what is in front of you.',
+    color: colors.primary, // #FF634E Coral
+    body: 'Point your camera at anything. Tap the large "DESCRIBE SCENE" button or double-tap anywhere on the viewfinder screen. IRIS will immediately analyze and speak what is in front of you.',
   },
   {
-    title: '2. Ask Questions with Your Voice',
+    step: '02',
+    title: 'ASK QUESTIONS WITH YOUR VOICE',
+    category: 'NATURAL SPEECH',
     icon: Mic,
-    color: '#38BDF8',
-    body: 'Want to know more? Tap "Ask Voice" and speak naturally. For example: "Where is the door?", "What color is this shirt?", or "Is there any step ahead?". IRIS will answer immediately.',
+    color: colors.droneTech, // #2563EB Blue
+    body: 'Want to know more? Tap "ASK VOICE" and speak naturally. For example: "Where is the door?", "What color is this shirt?", or "Is there any step ahead?". IRIS responds instantly.',
   },
   {
-    title: '3. Assistive Modes',
+    step: '03',
+    title: 'ASSISTIVE SENSING MODES',
+    category: 'INTELLIGENCE',
     icon: Sparkles,
-    color: '#A855F7',
-    body: 'Swipe or tap the top pills to switch modes:\n• Explore: Spatial directions and general layout\n• Read Text: Reads documents, labels, signs & menus\n• Hazards: Scans strictly for walking obstacles & stairs\n• Colors: Identifies precise colors and clothing',
+    color: colors.engineering, // #7C3AED Purple
+    body: 'Select category pills at the top to switch operational modes:\n• Explore: Spatial directions and general layout\n• Read Text: Reads documents, labels, signs & menus\n• Hazards: Scans strictly for walking obstacles & stairs\n• Colors: Identifies precise colors and clothing',
   },
   {
-    title: '4. Live Continuous Scan',
+    step: '04',
+    title: 'CONTINUOUS LIVE SCAN',
+    category: 'AMBIENT RADAR',
     icon: Compass,
-    color: colors.safe,
-    body: 'Tap "Live Mode" on the bottom left to enable continuous ambient commentary. IRIS will passively watch and announce environment changes every few seconds.',
+    color: colors.safe, // #13A851 Green
+    body: 'Tap "LIVE" on the bottom left to enable passive ambient commentary. IRIS will continuously scan and announce environmental changes every few seconds.',
   },
   {
-    title: '5. Shortcuts & Accessibility',
+    step: '05',
+    title: 'SHORTCUTS & ACCESSIBILITY',
+    category: 'QUICK CONTROLS',
     icon: Hand,
-    color: colors.hazardLow,
-    body: '• Double-tap anywhere on the camera view to describe instantly\n• Flashlight button in top HUD turns on light for dark rooms\n• Replay button repeats the last audio description anytime',
+    color: colors.foundations, // #D97706 Amber
+    body: '• Double-tap anywhere on camera view to describe instantly\n• Flashlight button in top HUD illuminates dark scenes\n• Replay button repeats the last audio description anytime',
   },
 ];
 
@@ -76,30 +84,34 @@ export default function GuideScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Audio Action Card */}
+        {/* Top Audio Narration Hero Card */}
         <TouchableOpacity
           accessible={true}
           accessibilityRole="button"
           accessibilityLabel="Read guide out loud"
           accessibilityHint="Reads the complete tutorial through audio"
           onPress={handleReadOutLoud}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
+          style={styles.heroCard}
         >
-          <GlassSurface
-            style={styles.narrationCard}
-            glassEffectStyle="regular"
-            highlight={true}
-          >
-            <View style={styles.narrationIconWrapper}>
-              <Volume2 size={26} color="#FFFFFF" />
+          {/* Top Ruler Indicator */}
+          <View style={styles.heroRulerTicks}>
+            {[...Array(16)].map((_, i) => (
+              <View key={i} style={styles.heroTick} />
+            ))}
+          </View>
+
+          <View style={styles.heroContentRow}>
+            <View style={styles.heroIconWrapper}>
+              <Volume2 size={24} color="#0A0E11" />
             </View>
-            <View style={styles.narrationTextCol}>
-              <Text style={styles.narrationTitle}>Read Guide Out Loud</Text>
-              <Text style={styles.narrationSubtitle}>
-                Tap to listen to the audio walkthrough
+            <View style={styles.heroTextCol}>
+              <Text style={styles.heroTitle}>READ GUIDE OUT LOUD</Text>
+              <Text style={styles.heroSubtitle}>
+                Tap to listen to the complete audio walkthrough
               </Text>
             </View>
-          </GlassSurface>
+          </View>
         </TouchableOpacity>
 
         {/* Section Cards */}
@@ -107,24 +119,39 @@ export default function GuideScreen() {
           const IconComponent = section.icon;
 
           return (
-            <GlassSurface
+            <View
               key={index}
-              style={styles.sectionCard}
-              glassEffectStyle="regular"
+              style={[styles.sectionCard, { borderTopColor: section.color }]}
             >
+              {/* Card Header */}
               <View style={styles.sectionHeader}>
+                <View style={styles.headerLeft}>
+                  <View
+                    style={[
+                      styles.categoryBadge,
+                      { backgroundColor: section.color },
+                    ]}
+                  >
+                    <Text style={styles.categoryBadgeText}>
+                      {section.category}
+                    </Text>
+                  </View>
+                  <Text style={styles.stepNumber}>{section.step}</Text>
+                </View>
                 <View
                   style={[
-                    styles.iconCircle,
-                    { backgroundColor: `${section.color}25` },
+                    styles.iconBox,
+                    { backgroundColor: `${section.color}20` },
                   ]}
                 >
-                  <IconComponent size={20} color={section.color} />
+                  <IconComponent size={18} color={section.color} />
                 </View>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
               </View>
+
+              {/* Title & Body */}
+              <Text style={styles.sectionTitle}>{section.title}</Text>
               <Text style={styles.sectionBody}>{section.body}</Text>
-            </GlassSurface>
+            </View>
           );
         })}
       </ScrollView>
@@ -139,65 +166,124 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    gap: 14,
+    gap: 16,
   },
-  narrationCard: {
+  heroCard: {
+    backgroundColor: colors.primary, // A1 Primary coral hero
+    borderWidth: 2.5,
+    borderColor: '#0A0E11',
+    borderRadius: 4,
+    padding: 16,
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
+  heroRulerTicks: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    opacity: 0.4,
+  },
+  heroTick: {
+    width: 2,
+    height: 6,
+    backgroundColor: '#0A0E11',
+  },
+  heroContentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    borderRadius: 24,
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: colors.primary,
-    borderWidth: 1.5,
     gap: 14,
   },
-  narrationIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.primary,
+  heroIconWrapper: {
+    width: 46,
+    height: 46,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#0A0E11',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
   },
-  narrationTextCol: {
+  heroTextCol: {
     flex: 1,
   },
-  narrationTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
+  heroTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0A0E11',
+    letterSpacing: 0.8,
   },
-  narrationSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
+  heroSubtitle: {
+    fontSize: 12,
+    color: '#381611',
+    fontWeight: '700',
     marginTop: 2,
   },
   sectionCard: {
+    backgroundColor: '#FFFFFF', // High-contrast clean white surface
+    borderWidth: 2,
+    borderColor: '#0A0E11',
+    borderTopWidth: 5,
+    borderRadius: 4,
     padding: 18,
-    borderRadius: 24,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 3.5, height: 3.5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 5,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 2,
+  },
+  categoryBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  stepNumber: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#9CA3AF',
+  },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0A0E11',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
   sectionBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#525252',
+    fontWeight: '600',
   },
 });
+

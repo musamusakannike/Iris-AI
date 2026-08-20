@@ -7,7 +7,6 @@ import {
   TextInput,
   StyleSheet,
   Switch,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -15,13 +14,11 @@ import {
   Sliders,
   ShieldAlert,
   Server,
-  Zap,
   Check,
   RefreshCw,
+  Zap,
 } from 'lucide-react-native';
-import { GlassSurface } from '../components/glass-surface';
-import { ActionButton } from '../components/action-button';
-import { colors } from '../theme/colors';
+import { colors, brutalistShadow } from '../theme/colors';
 import { useIrisStore } from '../store/useIrisStore';
 import { speechService } from '../services/speech';
 import { hapticService } from '../services/haptics';
@@ -29,10 +26,10 @@ import { setApiBaseUrl, getApiBaseUrl } from '../services/api';
 import { setWsUrl, irisWebSocket } from '../services/websocket';
 
 const SPEECH_RATES = [
-  { label: '0.8x', value: 0.8, description: 'Slower' },
-  { label: '1.0x', value: 1.0, description: 'Normal' },
-  { label: '1.25x', value: 1.25, description: 'Fast' },
-  { label: '1.5x', value: 1.5, description: 'Very Fast' },
+  { label: '0.8x', value: 0.8, description: 'SLOWER' },
+  { label: '1.0x', value: 1.0, description: 'NORMAL' },
+  { label: '1.25x', value: 1.25, description: 'FAST' },
+  { label: '1.5x', value: 1.5, description: 'VERY FAST' },
 ];
 
 export default function SettingsScreen() {
@@ -114,13 +111,15 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Speech Speed Setting */}
-        <GlassSurface style={styles.sectionCard} glassEffectStyle="regular">
+        <View style={[styles.sectionCard, { borderTopColor: colors.primary }]}>
           <View style={styles.sectionHeader}>
-            <Volume2 size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Speech Speed</Text>
+            <View style={[styles.iconBox, { backgroundColor: colors.primary }]}>
+              <Volume2 size={16} color="#0A0E11" />
+            </View>
+            <Text style={styles.sectionTitle}>SPEECH SPEED</Text>
           </View>
           <Text style={styles.sectionDescription}>
-            Choose how fast IRIS speaks descriptions aloud
+            Choose how fast IRIS articulates scene descriptions aloud
           </Text>
 
           <View style={styles.rateGrid}>
@@ -135,13 +134,13 @@ export default function SettingsScreen() {
                   onPress={() => handleRateChange(rate.value)}
                   style={[
                     styles.rateButton,
-                    isSelected && styles.rateButtonActive,
+                    isSelected ? styles.rateButtonActive : styles.rateButtonInactive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.rateButtonText,
-                      isSelected && styles.rateButtonTextActive,
+                      isSelected ? styles.rateButtonTextActive : styles.rateButtonTextInactive,
                     ]}
                   >
                     {rate.label}
@@ -149,7 +148,7 @@ export default function SettingsScreen() {
                   <Text
                     style={[
                       styles.rateButtonSubtext,
-                      isSelected && styles.rateButtonSubtextActive,
+                      isSelected ? styles.rateButtonSubtextActive : styles.rateButtonSubtextInactive,
                     ]}
                   >
                     {rate.description}
@@ -158,14 +157,19 @@ export default function SettingsScreen() {
               );
             })}
           </View>
-        </GlassSurface>
+        </View>
 
         {/* Verbosity Mode */}
-        <GlassSurface style={styles.sectionCard} glassEffectStyle="regular">
+        <View style={[styles.sectionCard, { borderTopColor: colors.engineering }]}>
           <View style={styles.sectionHeader}>
-            <Sliders size={20} color="#A855F7" />
-            <Text style={styles.sectionTitle}>Description Style</Text>
+            <View style={[styles.iconBox, { backgroundColor: colors.engineering }]}>
+              <Sliders size={16} color="#FFFFFF" />
+            </View>
+            <Text style={styles.sectionTitle}>DESCRIPTION STYLE</Text>
           </View>
+          <Text style={styles.sectionDescription}>
+            Select between punchy direct cues or full spatial details
+          </Text>
 
           <View style={styles.verbosityRow}>
             <TouchableOpacity
@@ -176,7 +180,9 @@ export default function SettingsScreen() {
               onPress={() => handleVerbosityChange('concise')}
               style={[
                 styles.verbosityButton,
-                settings.verbosity === 'concise' && styles.verbosityButtonActive,
+                settings.verbosity === 'concise'
+                  ? styles.verbosityButtonActive
+                  : styles.verbosityButtonInactive,
               ]}
             >
               <Text
@@ -185,10 +191,10 @@ export default function SettingsScreen() {
                   settings.verbosity === 'concise' && styles.verbosityTitleActive,
                 ]}
               >
-                Concise
+                CONCISE
               </Text>
               <Text style={styles.verbosityDesc}>
-                Quick direct summaries for fast walking
+                Quick direct summaries optimized for rapid walking
               </Text>
             </TouchableOpacity>
 
@@ -200,7 +206,9 @@ export default function SettingsScreen() {
               onPress={() => handleVerbosityChange('detailed')}
               style={[
                 styles.verbosityButton,
-                settings.verbosity === 'detailed' && styles.verbosityButtonActive,
+                settings.verbosity === 'detailed'
+                  ? styles.verbosityButtonActive
+                  : styles.verbosityButtonInactive,
               ]}
             >
               <Text
@@ -209,61 +217,65 @@ export default function SettingsScreen() {
                   settings.verbosity === 'detailed' && styles.verbosityTitleActive,
                 ]}
               >
-                Detailed
+                DETAILED
               </Text>
               <Text style={styles.verbosityDesc}>
-                Full spatial breakdown & distances
+                Comprehensive breakdown with object distances
               </Text>
             </TouchableOpacity>
           </View>
-        </GlassSurface>
+        </View>
 
         {/* Safety & Hazard Alerts */}
-        <GlassSurface style={styles.sectionCard} glassEffectStyle="regular">
+        <View style={[styles.sectionCard, { borderTopColor: colors.hazardHigh }]}>
           <View style={styles.sectionHeader}>
-            <ShieldAlert size={20} color={colors.hazardHigh} />
-            <Text style={styles.sectionTitle}>Safety & Hazard Alerts</Text>
+            <View style={[styles.iconBox, { backgroundColor: colors.hazardHigh }]}>
+              <ShieldAlert size={16} color="#FFFFFF" />
+            </View>
+            <Text style={styles.sectionTitle}>SAFETY & HAZARDS</Text>
           </View>
 
           <View style={styles.toggleRow}>
             <View style={styles.toggleTextCol}>
-              <Text style={styles.toggleLabel}>Hazard Vibration</Text>
+              <Text style={styles.toggleLabel}>Hazard Vibration Alerts</Text>
               <Text style={styles.toggleSubtext}>
-                Vibrate phone when stairs, drops, or obstacles are in path
+                Haptic vibration pattern when stairs or obstacles are ahead
               </Text>
             </View>
             <Switch
               value={settings.hazardVibration}
               onValueChange={handleToggleHazardVibration}
-              trackColor={{ false: '#334155', true: colors.primary }}
+              trackColor={{ false: '#2C3742', true: colors.primary }}
               thumbColor="#FFFFFF"
             />
           </View>
 
           <View style={[styles.toggleRow, { marginTop: 16 }]}>
             <View style={styles.toggleTextCol}>
-              <Text style={styles.toggleLabel}>Auditory Warning Beep</Text>
+              <Text style={styles.toggleLabel}>Auditory Warning Signal</Text>
               <Text style={styles.toggleSubtext}>
-                Play urgent spoken hazard alert
+                Immediate spoken voice alert for critical hazards
               </Text>
             </View>
             <Switch
               value={settings.hazardAlertSound}
               onValueChange={handleToggleHazardSound}
-              trackColor={{ false: '#334155', true: colors.primary }}
+              trackColor={{ false: '#2C3742', true: colors.primary }}
               thumbColor="#FFFFFF"
             />
           </View>
-        </GlassSurface>
+        </View>
 
         {/* Server & Engine Connection */}
-        <GlassSurface style={styles.sectionCard} glassEffectStyle="regular">
+        <View style={[styles.sectionCard, { borderTopColor: colors.droneTech }]}>
           <View style={styles.sectionHeader}>
-            <Server size={20} color="#38BDF8" />
-            <Text style={styles.sectionTitle}>Backend Server Connection</Text>
+            <View style={[styles.iconBox, { backgroundColor: colors.droneTech }]}>
+              <Server size={16} color="#FFFFFF" />
+            </View>
+            <Text style={styles.sectionTitle}>BACKEND SERVER ENGINE</Text>
           </View>
           <Text style={styles.sectionDescription}>
-            Connect mobile app to your Express + MongoDB server
+            Configure your Express + Gemini Vision backend endpoint
           </Text>
 
           <TextInput
@@ -271,7 +283,7 @@ export default function SettingsScreen() {
             value={serverHost}
             onChangeText={setServerHost}
             placeholder="http://localhost:5000"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.textDarkMuted}
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -285,9 +297,9 @@ export default function SettingsScreen() {
               style={styles.testButton}
               disabled={isTesting}
             >
-              <RefreshCw size={14} color={colors.primary} />
+              <RefreshCw size={13} color="#0A0E11" />
               <Text style={styles.testButtonText}>
-                {isTesting ? 'Testing...' : 'Test Connection'}
+                {isTesting ? 'TESTING...' : 'TEST LINK'}
               </Text>
             </TouchableOpacity>
 
@@ -298,22 +310,26 @@ export default function SettingsScreen() {
               onPress={handleSaveServerHost}
               style={styles.saveServerButton}
             >
-              <Check size={14} color="#FFFFFF" />
-              <Text style={styles.saveServerButtonText}>Save</Text>
+              <Check size={13} color="#0A0E11" />
+              <Text style={styles.saveServerButtonText}>SAVE</Text>
             </TouchableOpacity>
           </View>
 
           {testSuccess === true && (
-            <Text style={styles.testSuccessText}>
-              ✓ Connected successfully to IRIS backend engine
-            </Text>
+            <View style={styles.statusBoxSuccess}>
+              <Text style={styles.testSuccessText}>
+                ✓ SERVER CONNECTED & ACTIVE
+              </Text>
+            </View>
           )}
           {testSuccess === false && (
-            <Text style={styles.testErrorText}>
-              ✕ Could not reach server. Offline fallback is active.
-            </Text>
+            <View style={styles.statusBoxError}>
+              <Text style={styles.testErrorText}>
+                ✕ SERVER UNREACHABLE — OFFLINE ASSIST ACTIVE
+              </Text>
+            </View>
           )}
-        </GlassSurface>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -326,12 +342,20 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    gap: 14,
+    gap: 16,
   },
   sectionCard: {
+    backgroundColor: '#FFFFFF', // High-contrast clean white surface
+    borderWidth: 2,
+    borderColor: '#0A0E11',
+    borderTopWidth: 5,
+    borderRadius: 4,
     padding: 18,
-    borderRadius: 24,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 3.5, height: 3.5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 5,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -339,15 +363,24 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 6,
   },
+  iconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0A0E11',
+    letterSpacing: 0.8,
   },
   sectionDescription: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#525252',
     marginBottom: 16,
+    lineHeight: 18,
   },
   rateGrid: {
     flexDirection: 'row',
@@ -357,30 +390,43 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderRadius: 3,
+    borderWidth: 2,
   },
   rateButtonActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: '#0A0E11',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  rateButtonInactive: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E5E5',
   },
   rateButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '900',
   },
   rateButtonTextActive: {
-    color: colors.primary,
+    color: '#0A0E11',
+  },
+  rateButtonTextInactive: {
+    color: '#171717',
   },
   rateButtonSubtext: {
-    fontSize: 10,
-    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
     marginTop: 2,
+    letterSpacing: 0.5,
   },
   rateButtonSubtextActive: {
-    color: colors.primary,
+    color: '#381611',
+  },
+  rateButtonSubtextInactive: {
+    color: '#737373',
   },
   verbosityRow: {
     flexDirection: 'row',
@@ -389,63 +435,79 @@ const styles = StyleSheet.create({
   verbosityButton: {
     flex: 1,
     padding: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderRadius: 3,
+    borderWidth: 2,
   },
   verbosityButtonActive: {
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
-    borderColor: '#A855F7',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#0A0E11',
+    borderTopWidth: 4,
+    borderTopColor: colors.engineering,
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2.5, height: 2.5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  verbosityButtonInactive: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E5E5',
   },
   verbosityTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#171717',
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   verbosityTitleActive: {
-    color: '#A855F7',
+    color: '#0A0E11',
   },
   verbosityDesc: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#525252',
+    fontWeight: '600',
   },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    paddingTop: 12,
   },
   toggleTextCol: {
     flex: 1,
     paddingRight: 16,
   },
   toggleLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#171717',
   },
   toggleSubtext: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: '#737373',
     marginTop: 2,
+    lineHeight: 16,
   },
   serverInput: {
-    backgroundColor: 'rgba(30, 41, 59, 0.9)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: colors.textPrimary,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#171717',
+    fontSize: 14,
+    fontWeight: '600',
+    borderWidth: 2,
+    borderColor: '#0A0E11',
     marginBottom: 12,
   },
   serverActionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 10,
+    gap: 8,
   },
   testButton: {
     flexDirection: 'row',
@@ -453,13 +515,21 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderRadius: 3,
+    backgroundColor: '#E5E5E5',
+    borderWidth: 2,
+    borderColor: '#0A0E11',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
   },
   testButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: '#0A0E11',
   },
   saveServerButton: {
     flexDirection: 'row',
@@ -467,24 +537,49 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 3,
     backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: '#0A0E11',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
   },
   saveServerButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: '#0A0E11',
+  },
+  statusBoxSuccess: {
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1.5,
+    borderColor: colors.safe,
+    borderRadius: 3,
   },
   testSuccessText: {
-    marginTop: 10,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.safe,
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 0.5,
+  },
+  statusBoxError: {
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1.5,
+    borderColor: colors.hazardHigh,
+    borderRadius: 3,
   },
   testErrorText: {
-    marginTop: 10,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.hazardHigh,
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#B91C1C',
+    letterSpacing: 0.5,
   },
 });
+

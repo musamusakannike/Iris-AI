@@ -31,12 +31,16 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerStyle: {
-              backgroundColor: colors.background,
+              backgroundColor: colors.black,
             },
-            headerTintColor: colors.textPrimary,
+            headerTintColor: colors.primary,
             headerTitleStyle: {
-              fontWeight: '700',
-              fontSize: 18,
+              fontWeight: '900',
+              fontSize: 16,
+              color: '#FFFFFF',
+            },
+            headerBackTitleStyle: {
+              fontSize: 14,
             },
             contentStyle: {
               backgroundColor: colors.background,
@@ -47,28 +51,28 @@ export default function RootLayout() {
           <Stack.Screen
             name="index"
             options={{
-              headerShown: false, // We use a custom floating glass HUD in the main camera view
+              headerShown: false, // We use custom Academy HUD in camera view
             }}
           />
           <Stack.Screen
             name="guide"
             options={{
-              title: 'How to Use Iris',
-              headerBackTitle: 'Camera',
+              title: 'HOW TO USE IRIS',
+              headerBackTitle: 'CAMERA',
             }}
           />
           <Stack.Screen
             name="history"
             options={{
-              title: 'Scan History',
-              headerBackTitle: 'Camera',
+              title: 'SCAN HISTORY',
+              headerBackTitle: 'CAMERA',
             }}
           />
           <Stack.Screen
             name="settings"
             options={{
-              title: 'Preferences',
-              headerBackTitle: 'Camera',
+              title: 'PREFERENCES',
+              headerBackTitle: 'CAMERA',
             }}
           />
         </Stack>

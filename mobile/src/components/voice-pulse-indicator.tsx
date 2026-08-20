@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,8 +8,8 @@ import Animated, {
   withSequence,
   Easing,
 } from 'react-native-reanimated';
-import { Mic, Volume2, Sparkles, Eye } from 'lucide-react-native';
-import { colors } from '../theme/colors';
+import { Mic, Volume2, Sparkles, Eye, AlertOctagon } from 'lucide-react-native';
+import { colors, brutalistShadow } from '../theme/colors';
 import { AIState } from '../store/useIrisStore';
 
 interface VoicePulseIndicatorProps {
@@ -19,7 +19,7 @@ interface VoicePulseIndicatorProps {
 
 export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
   state,
-  size = 56,
+  size = 52,
 }) => {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(0.4);
@@ -28,7 +28,7 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
     if (state === 'listening') {
       scale.value = withRepeat(
         withSequence(
-          withTiming(1.4, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.35, { duration: 600, easing: Easing.inOut(Easing.ease) }),
           withTiming(1.0, { duration: 600, easing: Easing.inOut(Easing.ease) })
         ),
         -1,
@@ -36,7 +36,7 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
       );
       opacity.value = withRepeat(
         withSequence(
-          withTiming(0.8, { duration: 600 }),
+          withTiming(0.7, { duration: 600 }),
           withTiming(0.2, { duration: 600 })
         ),
         -1,
@@ -53,7 +53,7 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
       );
       opacity.value = withRepeat(
         withSequence(
-          withTiming(0.6, { duration: 800 }),
+          withTiming(0.55, { duration: 800 }),
           withTiming(0.15, { duration: 800 })
         ),
         -1,
@@ -62,7 +62,7 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
     } else if (state === 'speaking') {
       scale.value = withRepeat(
         withSequence(
-          withTiming(1.2, { duration: 400 }),
+          withTiming(1.25, { duration: 400 }),
           withTiming(1.0, { duration: 400 })
         ),
         -1,
@@ -70,8 +70,8 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
       );
       opacity.value = withRepeat(
         withSequence(
-          withTiming(0.7, { duration: 400 }),
-          withTiming(0.3, { duration: 400 })
+          withTiming(0.65, { duration: 400 }),
+          withTiming(0.25, { duration: 400 })
         ),
         -1,
         true
@@ -90,15 +90,15 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
   const getStateColor = () => {
     switch (state) {
       case 'listening':
-        return colors.listening;
+        return colors.listening; // #FF634E
       case 'thinking':
-        return colors.thinking;
+        return colors.thinking; // #7C3AED
       case 'speaking':
-        return colors.speaking;
+        return colors.speaking; // #13A851
       case 'error':
-        return colors.error;
+        return colors.error; // #EF4444
       default:
-        return colors.idle;
+        return '#232C35';
     }
   };
 
@@ -111,9 +111,9 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
           style={[
             styles.pulseRing,
             {
-              width: size * 1.5,
-              height: size * 1.5,
-              borderRadius: (size * 1.5) / 2,
+              width: size * 1.4,
+              height: size * 1.4,
+              borderRadius: (size * 1.4) / 2,
               backgroundColor: currentColor,
             },
             animatedRingStyle,
@@ -127,15 +127,16 @@ export const VoicePulseIndicator: React.FC<VoicePulseIndicatorProps> = ({
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: state === 'idle' ? 'rgba(30, 41, 59, 0.8)' : currentColor,
+            backgroundColor: state === 'idle' ? '#0A0E11' : currentColor,
+            borderColor: state === 'idle' ? colors.primary : '#0A0E11',
           },
         ]}
       >
-        {state === 'listening' && <Mic size={24} color="#FFFFFF" />}
-        {state === 'thinking' && <Sparkles size={24} color="#FFFFFF" />}
-        {state === 'speaking' && <Volume2 size={24} color="#FFFFFF" />}
-        {state === 'idle' && <Eye size={24} color={colors.textSecondary} />}
-        {state === 'error' && <Eye size={24} color="#FFFFFF" />}
+        {state === 'listening' && <Mic size={22} color="#0A0E11" />}
+        {state === 'thinking' && <Sparkles size={22} color="#FFFFFF" />}
+        {state === 'speaking' && <Volume2 size={22} color="#FFFFFF" />}
+        {state === 'idle' && <Eye size={22} color={colors.primary} />}
+        {state === 'error' && <AlertOctagon size={22} color="#FFFFFF" />}
       </View>
     </View>
   );
@@ -153,10 +154,13 @@ const styles = StyleSheet.create({
   coreCircle: {
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    borderWidth: 2.5,
+    borderColor: '#0A0E11',
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
 });
+
