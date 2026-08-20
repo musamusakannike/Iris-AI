@@ -35,7 +35,6 @@ import { apiService, AssistiveMode } from '../services/api';
 import { speechService } from '../services/speech';
 import { hapticService } from '../services/haptics';
 import { irisWebSocket } from '../services/websocket';
-import * as ImageManipulator from 'expo-image-manipulator';
 
 // Try importing ExpoSpeechRecognitionModule safely
 let ExpoSpeechRecognitionModule: any = null;
@@ -54,8 +53,6 @@ export default function IrisHomeScreen() {
   const [speechPromptText, setSpeechPromptText] = useState('');
   const lastTapRef = useRef<number>(0);
   const liveScanTimerRef = useRef<any>(null);
-  const lastFrameHashRef = useRef<string>('');
-  const hasSpokenEarlyChunkRef = useRef<boolean>(false);
 
   const {
     activeMode,
@@ -80,28 +77,10 @@ export default function IrisHomeScreen() {
     );
   }, []);
 
-  // Listen to WebSocket AI descriptions, streaming chunks, and hazard alerts
+  // Listen to WebSocket AI descriptions and hazard alerts
   useEffect(() => {
-    let accumulatedText = '';
     const unsubscribe = irisWebSocket.subscribe({
-      onStreamChunk: (chunk) => {
-        accumulatedText += chunk;
-        // Low-latency early speech pipeline: start speaking as soon as first full sentence is formed
-        if (!hasSpokenEarlyChunkRef.current) {
-          const sentenceEndMatch = accumulatedText.match(/^.*?[.!?]\s/);
-          if (sentenceEndMatch) {
-            const firstSentence = sentenceEndMatch[0].trim();
-            // Verify it's not a JSON delimiter
-            if (firstSentence.length > 8 && !firstSentence.startsWith('{') && !firstSentence.includes('"spokenSummary":')) {
-              hasSpokenEarlyChunkRef.current = true;
-              speechService.speak(firstSentence);
-            }
-          }
-        }
-      },
       onDescription: (data) => {
-        accumulatedText = '';
-        hasSpokenEarlyChunkRef.current = false;
         setCurrentDescription(data);
         setIsProcessing(false);
       },
@@ -115,7 +94,7 @@ export default function IrisHomeScreen() {
     };
   }, []);
 
-  // Continuous Live Scan Loop with intelligent debouncing
+  // Continuous Live Scan Loop
   useEffect(() => {
     if (isLiveScanning) {
       const runContinuousScan = async () => {
@@ -126,7 +105,7 @@ export default function IrisHomeScreen() {
       };
 
       runContinuousScan();
-      liveScanTimerRef.current = setInterval(runContinuousScan, 3000);
+      liveScanTimerRef.current = setInterval(runContinuousScan, 3500);
     } else {
       if (liveScanTimerRef.current) {
         clearInterval(liveScanTimerRef.current);
@@ -143,7 +122,7 @@ export default function IrisHomeScreen() {
   }, [isLiveScanning, activeMode, isProcessing]);
 
   /**
-   * Capture snapshot and analyze with optimized client-side downscaling
+   * Capture snapshot and analyze with specified mode
    */
   const captureAndAnalyze = useCallback(
     async (mode: AssistiveMode, query?: string, isStream = false) => {
@@ -152,51 +131,29 @@ export default function IrisHomeScreen() {
       if (!isStream) {
         setIsProcessing(true);
         setAiState('thinking');
-        hasSpokenEarlyChunkRef.current = false;
         hapticService.triggerStart();
         speechService.announce('Analyzing scene...');
       }
 
       try {
-        // 1. Capture snapshot at native resolution without heavy full-size base64 encoding
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
+          base64: true,
+          quality: 0.5,
           shutterSound: false,
         });
 
-        if (!photo?.uri) {
+        if (!photo?.base64) {
           throw new Error('Could not capture frame');
         }
 
-        // 2. Hardware-accelerated client-side downscaling to 800px width with 0.6 JPEG compression
-        // Reduces network payload from ~4-6 MB down to ~60-90 KB (95% reduction in upload latency)
-        const manipulated = await ImageManipulator.manipulateAsync(
-          photo.uri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-        );
+        const base64Data = photo.base64;
 
-        const base64Data = manipulated.base64;
-        if (!base64Data) {
-          throw new Error('Could not encode compressed image');
-        }
-
-        // 3. Motion / Scene Deduplication: In live stream mode, skip unchanged stationary frames
-        if (isStream) {
-          const sampleSignature = base64Data.slice(80, 160);
-          if (sampleSignature === lastFrameHashRef.current) {
-            return; // Scene is stationary, skip duplicate API call to conserve bandwidth and cost
-          }
-          lastFrameHashRef.current = sampleSignature;
-        }
-
-        // 4. Dispatch via Real-Time WebSocket if connected and in stream mode
         if (isStream && irisWebSocket.getStatus() === 'connected') {
           irisWebSocket.sendFrame(base64Data, mode);
           return;
         }
 
-        // 5. Send via optimized REST API
+        // Send via REST API
         let result;
         if (query) {
           result = await apiService.askQuestion(base64Data, query);

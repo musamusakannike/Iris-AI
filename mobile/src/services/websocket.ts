@@ -5,7 +5,6 @@ export type WebSocketStatus = 'disconnected' | 'connecting' | 'connected' | 'err
 
 export interface StreamListener {
   onDescription?: (data: VisionResponse) => void;
-  onStreamChunk?: (chunk: string, mode: AssistiveMode) => void;
   onHazardAlert?: (data: { hazardLevel: string; details: string }) => void;
   onStatusChange?: (status: WebSocketStatus) => void;
 }
@@ -124,15 +123,6 @@ class IrisWebSocketClient {
 
   private handleIncomingMessage(msg: Record<string, any>): void {
     switch (msg.type) {
-      case 'AI_STREAM_CHUNK': {
-        const chunk = msg.chunk as string;
-        const mode = (msg.mode as AssistiveMode) || 'explore';
-        for (const listener of this.listeners) {
-          listener.onStreamChunk?.(chunk, mode);
-        }
-        break;
-      }
-
       case 'AI_DESCRIPTION': {
         const data: VisionResponse = {
           mode: msg.mode || 'explore',
