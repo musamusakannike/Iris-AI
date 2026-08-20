@@ -53,11 +53,11 @@ const SPEECH_PITCHES = [
 
 // Fallback curated voices in case device returns empty list (e.g. some simulator environments)
 const CURATED_FALLBACK_VOICES: VoiceInfo[] = [
-  { identifier: 'default', name: 'Iris System Native', quality: 'Default', language: 'en-US' },
-  { identifier: 'en-us-studio', name: 'Samantha (Studio)', quality: 'Enhanced', language: 'en-US' },
-  { identifier: 'en-gb-clarity', name: 'Daniel (Clear British)', quality: 'Enhanced', language: 'en-GB' },
-  { identifier: 'en-au-warm', name: 'Karen (Pacific)', quality: 'Default', language: 'en-AU' },
-  { identifier: 'en-us-neural', name: 'Alex (Deep Focus)', quality: 'Enhanced', language: 'en-US' },
+  { identifier: 'default', name: 'Iris Auto-Enhanced Default', quality: 'Enhanced HD', language: 'en-US', isEnhanced: true, isNeural: true, badge: 'HD NEURAL' },
+  { identifier: 'en-us-studio', name: 'Samantha (Studio HD)', quality: 'Enhanced HD', language: 'en-US', isEnhanced: true, isNeural: true, badge: 'HD NEURAL' },
+  { identifier: 'en-gb-clarity', name: 'Daniel (Clear British)', quality: 'Enhanced HD', language: 'en-GB', isEnhanced: true, isNeural: true, badge: 'STUDIO' },
+  { identifier: 'en-au-warm', name: 'Karen (Natural Pacific)', quality: 'Natural', language: 'en-AU', isEnhanced: false, isNeural: false, badge: 'NATURAL' },
+  { identifier: 'en-us-neural', name: 'Alex (Deep Focus)', quality: 'Enhanced HD', language: 'en-US', isEnhanced: true, isNeural: true, badge: 'HD NEURAL' },
 ];
 
 export default function SettingsScreen() {
@@ -75,6 +75,7 @@ export default function SettingsScreen() {
   const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<'ALL' | 'EN' | 'ENHANCED'>('EN');
   const [voiceSearchQuery, setVoiceSearchQuery] = useState('');
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const [showVoiceGuide, setShowVoiceGuide] = useState(false);
 
   useEffect(() => {
     speechService.announce('Preferences and accessibility settings screen.');
@@ -107,16 +108,15 @@ export default function SettingsScreen() {
         (v) =>
           v.name.toLowerCase().includes(q) ||
           v.language.toLowerCase().includes(q) ||
-          v.identifier.toLowerCase().includes(q)
+          v.identifier.toLowerCase().includes(q) ||
+          (v.badge && v.badge.toLowerCase().includes(q))
       );
     } else {
       if (selectedVoiceFilter === 'EN') {
         list = list.filter((v) => v.language.toLowerCase().startsWith('en'));
       } else if (selectedVoiceFilter === 'ENHANCED') {
         list = list.filter(
-          (v) =>
-            v.quality.toLowerCase().includes('enhanced') ||
-            v.quality.toLowerCase().includes('hq')
+          (v) => v.isEnhanced || v.badge === 'HD NEURAL' || v.badge === 'STUDIO'
         );
       }
     }
@@ -244,11 +244,22 @@ export default function SettingsScreen() {
   // Find active voice details
   const currentActiveVoice = useMemo(() => {
     if (!settings.voiceIdentifier || settings.voiceIdentifier === 'default') {
+      const best = availableVoices.find((v) => v.isEnhanced) || availableVoices[0];
+      if (best) {
+        return {
+          ...best,
+          name: `${best.name} (Auto-Enhanced)`,
+          badge: (best.badge || 'HD NEURAL') as any,
+        };
+      }
       return {
         identifier: 'default',
-        name: 'System Native Default',
+        name: 'Iris Neural Default',
         language: 'en-US',
-        quality: 'Default',
+        quality: 'Enhanced HD',
+        badge: 'HD NEURAL' as const,
+        isEnhanced: true,
+        isNeural: true,
       };
     }
     const found = availableVoices.find((v) => v.identifier === settings.voiceIdentifier);
@@ -258,6 +269,8 @@ export default function SettingsScreen() {
         name: 'Custom Device Voice',
         language: 'en-US',
         quality: 'Default',
+        isEnhanced: false,
+        isNeural: false,
       }
     );
   }, [settings.voiceIdentifier, availableVoices]);
@@ -277,7 +290,7 @@ export default function SettingsScreen() {
             <Text style={styles.sectionTitle}>AI VOICE & PERSONA</Text>
           </View>
           <Text style={styles.sectionDescription}>
-            Choose the voice persona and accent for IRIS spatial audio guidance
+            High-definition on-device neural voice for zero-latency offline assistance
           </Text>
 
           {/* Active Voice Feature Card with BottomSheet Trigger */}
@@ -296,17 +309,19 @@ export default function SettingsScreen() {
                       {currentActiveVoice.language.toUpperCase()}
                     </Text>
                   </View>
-                  {(currentActiveVoice.quality.toLowerCase().includes('enhanced') ||
-                    currentActiveVoice.quality.toLowerCase().includes('hq')) && (
+                  {currentActiveVoice.badge === 'HD NEURAL' && (
                     <View style={styles.enhancedBadge}>
-                      <Text style={styles.enhancedBadgeText}>HD</Text>
+                      <Text style={styles.enhancedBadgeText}>⚡ HD NEURAL</Text>
+                    </View>
+                  )}
+                  {currentActiveVoice.badge === 'STUDIO' && (
+                    <View style={styles.studioBadge}>
+                      <Text style={styles.studioBadgeText}>STUDIO</Text>
                     </View>
                   )}
                 </View>
                 <Text style={styles.activeVoiceHeroSubtitle} numberOfLines={1}>
-                  {currentActiveVoice.identifier === 'default'
-                    ? 'Built-in device speech synthesizer'
-                    : currentActiveVoice.identifier}
+                  100% OFFLINE • ZERO LATENCY • {currentActiveVoice.identifier}
                 </Text>
               </View>
             </View>
@@ -726,7 +741,7 @@ export default function SettingsScreen() {
                       : styles.filterChipTextInactive,
                   ]}
                 >
-                  HD ENHANCED
+                  ⚡ HD NEURAL
                 </Text>
               </TouchableOpacity>
 
@@ -758,6 +773,29 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Offline Studio Voice Guide Banner */}
+            <TouchableOpacity
+              onPress={() => setShowVoiceGuide(!showVoiceGuide)}
+              style={styles.voiceGuideBanner}
+            >
+              <View style={styles.voiceGuideBannerHeader}>
+                <Sparkles size={14} color="#0A0E11" />
+                <Text style={styles.voiceGuideBannerTitle}>
+                  {showVoiceGuide ? 'HIDE OFFLINE HD SETUP GUIDE' : '💡 HOW TO UNLOCK FREE STUDIO NEURAL VOICES'}
+                </Text>
+              </View>
+              {showVoiceGuide && (
+                <View style={styles.voiceGuideBannerBody}>
+                  <Text style={styles.voiceGuideText}>
+                    <Text style={{ fontWeight: '900' }}>iOS / iPhone:</Text> Settings ➔ Accessibility ➔ Spoken Content ➔ Voices ➔ English ➔ Download <Text style={{ fontWeight: '900' }}>Ava (Premium)</Text>, <Text style={{ fontWeight: '900' }}>Zoe</Text>, or <Text style={{ fontWeight: '900' }}>Siri</Text> for 100% free studio audio.
+                  </Text>
+                  <Text style={[styles.voiceGuideText, { marginTop: 6 }]}>
+                    <Text style={{ fontWeight: '900' }}>Android:</Text> Settings ➔ Accessibility ➔ Text-to-speech output ➔ Install voice data (Google TTS High Quality).
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             {/* Voice Search Input */}
             <View style={styles.modalSearchContainer}>
@@ -796,17 +834,20 @@ export default function SettingsScreen() {
                 <>
                   {/* Default Native Option */}
                   {(!voiceSearchQuery ||
-                    'system native default'.includes(voiceSearchQuery.toLowerCase())) && (
+                    'system native default auto-enhanced'.includes(voiceSearchQuery.toLowerCase())) && (
                     <TouchableOpacity
                       accessible={true}
                       accessibilityRole="button"
-                      accessibilityLabel={`System Native Default Voice, ${!settings.voiceIdentifier ? 'selected' : 'not selected'}`}
+                      accessibilityLabel={`System Auto-Enhanced Voice, ${!settings.voiceIdentifier ? 'selected' : 'not selected'}`}
                       onPress={() =>
                         handleSelectVoice({
                           identifier: 'default',
-                          name: 'System Native Default',
-                          quality: 'Default',
+                          name: 'Iris Auto-Enhanced Default',
+                          quality: 'Enhanced HD',
                           language: 'en-US',
+                          isEnhanced: true,
+                          isNeural: true,
+                          badge: 'HD NEURAL',
                         })
                       }
                       style={[
@@ -829,13 +870,13 @@ export default function SettingsScreen() {
                         </View>
                         <View style={styles.voiceInfoCol}>
                           <View style={styles.voiceNameRow}>
-                            <Text style={styles.voiceName}>System Native</Text>
-                            <View style={styles.badgeAuto}>
-                              <Text style={styles.badgeAutoText}>DEFAULT</Text>
+                            <Text style={styles.voiceName}>Auto-Enhanced Default</Text>
+                            <View style={styles.enhancedBadge}>
+                              <Text style={styles.enhancedBadgeText}>⚡ BEST HD</Text>
                             </View>
                           </View>
                           <Text style={styles.voiceSubtext}>
-                            Device built-in speech synthesizer
+                            Auto-selects highest quality on-device neural voice
                           </Text>
                         </View>
                       </View>
@@ -847,9 +888,11 @@ export default function SettingsScreen() {
                         onPress={() =>
                           handlePreviewVoice({
                             identifier: 'default',
-                            name: 'System Default',
-                            quality: 'Default',
+                            name: 'Auto-Enhanced Default',
+                            quality: 'Enhanced HD',
                             language: 'en-US',
+                            isEnhanced: true,
+                            isNeural: true,
                           })
                         }
                         style={styles.previewButton}
@@ -868,9 +911,6 @@ export default function SettingsScreen() {
                   {filteredVoices.map((voice) => {
                     const isSelected = settings.voiceIdentifier === voice.identifier;
                     const isPreviewing = previewingVoiceId === voice.identifier;
-                    const isEnhanced =
-                      voice.quality.toLowerCase().includes('enhanced') ||
-                      voice.quality.toLowerCase().includes('hq');
 
                     return (
                       <TouchableOpacity
@@ -911,9 +951,19 @@ export default function SettingsScreen() {
                                   {voice.language.toUpperCase()}
                                 </Text>
                               </View>
-                              {isEnhanced && (
+                              {voice.badge === 'HD NEURAL' && (
                                 <View style={styles.enhancedBadge}>
-                                  <Text style={styles.enhancedBadgeText}>HD</Text>
+                                  <Text style={styles.enhancedBadgeText}>⚡ HD NEURAL</Text>
+                                </View>
+                              )}
+                              {voice.badge === 'STUDIO' && (
+                                <View style={styles.studioBadge}>
+                                  <Text style={styles.studioBadgeText}>STUDIO</Text>
+                                </View>
+                              )}
+                              {voice.badge === 'NATURAL' && (
+                                <View style={styles.naturalBadge}>
+                                  <Text style={styles.naturalBadgeText}>NATURAL</Text>
                                 </View>
                               )}
                             </View>
@@ -1617,14 +1667,79 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
     borderWidth: 1,
     borderColor: colors.safe,
-    paddingHorizontal: 4,
-    paddingVertical: 1.5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
     borderRadius: 2,
   },
   enhancedBadgeText: {
     fontSize: 9,
     fontWeight: '900',
     color: '#15803D',
+    letterSpacing: 0.3,
+  },
+  studioBadge: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#6366F1',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 2,
+  },
+  studioBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#4F46E5',
+    letterSpacing: 0.3,
+  },
+  naturalBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#D97706',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 2,
+  },
+  naturalBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#B45309',
+    letterSpacing: 0.3,
+  },
+  voiceGuideBanner: {
+    backgroundColor: '#FEF9C3',
+    borderWidth: 1.5,
+    borderColor: '#0A0E11',
+    borderRadius: 3,
+    padding: 10,
+    marginHorizontal: 18,
+    marginBottom: 8,
+    shadowColor: '#0A0E11',
+    shadowOffset: { width: 1.5, height: 1.5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+  voiceGuideBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  voiceGuideBannerTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#0A0E11',
+    letterSpacing: 0.4,
+  },
+  voiceGuideBannerBody: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#EAB308',
+  },
+  voiceGuideText: {
+    fontSize: 11,
+    color: '#451A03',
+    lineHeight: 16,
   },
   voiceSubtext: {
     fontSize: 10,
