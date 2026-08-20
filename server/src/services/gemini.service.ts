@@ -201,6 +201,15 @@ const generateMockAssistiveResponse = (
   }
 };
 
+const PRIMARY_MODEL = 'gemini-3.6-flash';
+const FALLBACK_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-flash-latest',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3-flash-preview',
+];
+
 export const geminiService = {
   /**
    * Analyze image with assistive mode and optional user question
@@ -210,7 +219,7 @@ export const geminiService = {
     mimeType = 'image/jpeg',
     mode: AssistiveMode = 'explore',
     customQuery?: string,
-    model = 'gemini-2.5-flash'
+    model = PRIMARY_MODEL
   ): Promise<VisionAnalysisResult> {
     const ai = getGeminiClient();
 
@@ -224,72 +233,95 @@ export const geminiService = {
       return generateMockAssistiveResponse(mode, customQuery);
     }
 
-    try {
-      const modeInstruction = getModePrompt(mode, customQuery);
-      const fullPrompt = `${BASE_ASSISTIVE_PROMPT}\n\n${modeInstruction}\nReturn only valid JSON without markdown code fences.`;
+    const startTime = Date.now();
+    logger.info(`🤖 Starting Gemini vision inference with model [${model}]. Image payload size: ${(cleanBase64.length / 1024).toFixed(1)} KB`);
 
-      const response = await ai.models.generateContent({
-        model,
-        contents: [
+    const modeInstruction = getModePrompt(mode, customQuery);
+    const fullPrompt = `${BASE_ASSISTIVE_PROMPT}\n\n${modeInstruction}\nReturn only valid JSON without markdown code fences.`;
+
+    const contents = [
+      {
+        role: 'user',
+        parts: [
           {
-            role: 'user',
-            parts: [
-              {
-                inlineData: {
-                  mimeType,
-                  data: cleanBase64,
-                },
-              },
-              {
-                text: fullPrompt,
-              },
-            ],
+            inlineData: {
+              mimeType,
+              data: cleanBase64,
+            },
+          },
+          {
+            text: fullPrompt,
           },
         ],
-      });
+      },
+    ];
 
-      const rawText = response.text || '';
-      logger.debug('Gemini Raw Response:', rawText);
+    // Try primary model then fallback models if needed
+    const candidateModels = [model, ...FALLBACK_MODELS.filter((m) => m !== model)];
+    let lastError: any = null;
 
-      // Clean JSON formatting if enclosed in code blocks
-      const jsonStr = rawText
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-
+    for (const candidate of candidateModels) {
       try {
-        const parsed = JSON.parse(jsonStr);
-        return {
-          spokenSummary: parsed.spokenSummary || parsed.fullDescription || rawText.slice(0, 150),
-          response: parsed.fullDescription || parsed.spokenSummary || rawText,
-          hazardLevel: parsed.hazardLevel || 'none',
-          hazardDetails: parsed.hazardDetails || '',
-          detectedEntities: Array.isArray(parsed.detectedEntities) ? parsed.detectedEntities : [],
-          tags: Array.isArray(parsed.tags) ? parsed.tags : [mode],
-        };
-      } catch (jsonErr) {
-        logger.warn('Failed to parse Gemini response as JSON. Using text fallback:', jsonErr);
-        return {
-          spokenSummary: rawText.slice(0, 180).trim(),
-          response: rawText.trim(),
-          hazardLevel: rawText.toLowerCase().includes('danger') || rawText.toLowerCase().includes('hazard') ? 'medium' : 'none',
-          hazardDetails: '',
-          detectedEntities: [],
-          tags: [mode],
-        };
+        logger.debug(`Attempting Gemini model: ${candidate}`);
+        const response = await ai.models.generateContent({
+          model: candidate,
+          contents,
+        });
+
+        const rawText = response.text || '';
+        const elapsed = Date.now() - startTime;
+        logger.info(`✅ Gemini [${candidate}] inference completed in ${elapsed}ms. Response chars: ${rawText.length}`);
+
+        // Clean JSON formatting if enclosed in code blocks
+        const jsonStr = rawText
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          return {
+            spokenSummary: parsed.spokenSummary || parsed.fullDescription || rawText.slice(0, 150),
+            response: parsed.fullDescription || parsed.spokenSummary || rawText,
+            hazardLevel: parsed.hazardLevel || 'none',
+            hazardDetails: parsed.hazardDetails || '',
+            detectedEntities: Array.isArray(parsed.detectedEntities) ? parsed.detectedEntities : [],
+            tags: Array.isArray(parsed.tags) ? parsed.tags : [mode],
+          };
+        } catch (jsonErr) {
+          logger.warn('Failed to parse Gemini response as JSON. Using direct text:', jsonErr);
+          return {
+            spokenSummary: rawText.slice(0, 180).trim(),
+            response: rawText.trim(),
+            hazardLevel:
+              rawText.toLowerCase().includes('danger') || rawText.toLowerCase().includes('hazard')
+                ? 'medium'
+                : 'none',
+            hazardDetails: '',
+            detectedEntities: [],
+            tags: [mode],
+          };
+        }
+      } catch (error: any) {
+        lastError = error;
+        logger.warn(`⚠️ Model [${candidate}] failed: ${error.message || error.status || JSON.stringify(error)}`);
       }
-    } catch (error) {
-      logger.error('❌ Error in Gemini Assistive Image Analysis:', error);
-      // Return safe graceful fallback
-      return generateMockAssistiveResponse(mode, customQuery);
     }
+
+    logger.error('❌ All Gemini models failed. Details:', {
+      message: lastError?.message,
+      status: lastError?.status,
+      errorDetails: lastError?.error,
+    });
+
+    return generateMockAssistiveResponse(mode, customQuery);
   },
 
   /**
    * Simple text prompt generation
    */
-  async generateText(prompt: string, model = 'gemini-2.5-flash'): Promise<string> {
+  async generateText(prompt: string, model = PRIMARY_MODEL): Promise<string> {
     const ai = getGeminiClient();
     if (!ai) {
       return 'IRIS AI is ready to help you see the world.';
@@ -300,8 +332,11 @@ export const geminiService = {
         contents: prompt,
       });
       return response.text || '';
-    } catch (err) {
-      logger.error('Error generating text:', err);
+    } catch (err: any) {
+      logger.error('Error generating text:', {
+        message: err?.message,
+        status: err?.status,
+      });
       return 'I am currently processing your request.';
     }
   },

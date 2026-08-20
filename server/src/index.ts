@@ -20,32 +20,35 @@ const startServer = async () => {
     logger.info(`🔌 WebSocket: ws://localhost:${env.PORT}/ws`);
   });
 
-  // Attempt database connection in background without blocking server startup
+  // Attempt database connection in background
   connectDB().catch(() => {
     logger.warn('⚠️ MongoDB connection could not be established on startup. Server running with memory-resilient storage.');
   });
 
   // Graceful shutdown handling
+  let isShuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
     logger.info(`Received ${signal}. Gracefully shutting down server...`);
 
-    await webSocketService.close();
+    try {
+      await webSocketService.close();
+    } catch {}
 
-    server.close(async () => {
-      logger.info('HTTP server closed.');
+    try {
+      server.close();
+    } catch {}
+
+    try {
       await disconnectDB();
-      logger.info('Process terminated gracefully.');
-      process.exit(0);
-    });
+    } catch {}
 
-    setTimeout(() => {
-      logger.error('Could not close connections in time, forcefully shutting down');
-      process.exit(1);
-    }, 5000);
+    process.exit(0);
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 
   process.on('unhandledRejection', (reason: unknown) => {
     logger.error('Unhandled Promise Rejection:', reason);

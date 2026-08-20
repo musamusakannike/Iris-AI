@@ -31,7 +31,7 @@ export interface UserSettings {
 
 // Default to localhost or Android emulator host 10.0.2.2
 const DEFAULT_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
-let currentBaseUrl = `http://${DEFAULT_HOST}:5000/api/v1`;
+let currentBaseUrl = `http://172.20.10.4:5000/api/v1`;
 
 export const getApiBaseUrl = (): string => currentBaseUrl;
 
