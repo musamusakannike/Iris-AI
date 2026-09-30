@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Host, Button, Column, Text as UIText } from "@expo/ui";
+import { Host, Button, Column, Text as UIText, BottomSheet } from "@expo/ui";
 import { MenuView } from "@expo/ui/community/menu";
 import { Image } from "expo-image";
 import { GlassSurface } from "../components/glass-surface";
@@ -22,9 +22,6 @@ try {
 } catch {
   // native speech recognition optional
 }
-
-const CIRCLE_BG = "rgba(255,255,255,0.08)";
-const CIRCLE_BORDER = "rgba(255,255,255,0.22)";
 
 /* ---------- Small building blocks ---------- */
 
@@ -76,6 +73,9 @@ function IconButton({
     </Pressable>
   );
 }
+
+const CIRCLE_BG = "rgba(255,255,255,0.08)";
+const CIRCLE_BORDER = "rgba(255,255,255,0.22)";
 
 function ActionCircle({
   icon,
@@ -142,6 +142,7 @@ export default function IrisHomeScreen() {
   const cameraRef = useRef<CameraView | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const speechTextRef = useRef("");
   const lastTapRef = useRef<number>(0);
   const liveScanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -535,7 +536,7 @@ export default function IrisHomeScreen() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 12,
+                gap: 8,
                 paddingLeft: 16,
                 paddingRight: 8,
                 paddingVertical: 8,
@@ -544,11 +545,8 @@ export default function IrisHomeScreen() {
               <Pressable
                 style={{ flex: 1 }}
                 accessibilityRole="button"
-                accessibilityLabel="Dismiss description"
-                onPress={() => {
-                  clearCurrentDescription();
-                  clearLiveStreamingTranscript();
-                }}
+                accessibilityLabel="Expand spoken description"
+                onPress={() => setTranscriptOpen(true)}
               >
                 <Text
                   numberOfLines={2}
@@ -565,11 +563,15 @@ export default function IrisHomeScreen() {
                     speakDescription(currentDescription.spokenSummary);
                 }}
               />
+              <IconButton
+                icon="chevron.up"
+                label="Expand spoken text"
+                onPress={() => setTranscriptOpen(true)}
+              />
             </GlassSurface>
           </View>
         ) : null}
 
-        {/* Action bar */}
         <SafeAreaView
           edges={["bottom"]}
           style={{ paddingHorizontal: 12, paddingBottom: 8 }}
@@ -600,7 +602,6 @@ export default function IrisHomeScreen() {
               accessibilityHint="Toggles continuous scene guidance"
             />
 
-            {/* Describe (hero) */}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Describe scene"
@@ -654,6 +655,47 @@ export default function IrisHomeScreen() {
           </GlassSurface>
         </SafeAreaView>
       </View>
+
+      <Host>
+        <BottomSheet
+          isPresented={transcriptOpen}
+          onDismiss={() => setTranscriptOpen(false)}
+          snapPoints={["half", "full"]}
+        >
+          <Column spacing={16}>
+            <UIText
+              textStyle={{
+                fontSize: 22,
+                fontWeight: "700",
+              }}
+            >
+              {"Spoken description"}
+            </UIText>
+            <UIText
+              textStyle={{
+                fontSize: 17,
+              }}
+            >
+              {bannerText ?? ""}
+            </UIText>
+            <Button
+              label="Listen again"
+              variant="filled"
+              onPress={() => {
+                hapticService.tap();
+                if (currentDescription?.spokenSummary) {
+                  speakDescription(currentDescription.spokenSummary);
+                }
+              }}
+            />
+            <Button
+              label="Close"
+              variant="text"
+              onPress={() => setTranscriptOpen(false)}
+            />
+          </Column>
+        </BottomSheet>
+      </Host>
     </View>
   );
 }
