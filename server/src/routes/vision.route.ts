@@ -1,13 +1,27 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
-import { geminiService } from '../services/gemini.service';
+import { aiVisionService } from '../services/aiVision.service';
 import { ScanModel, AssistiveMode } from '../models/scan.model';
 import { saveToHistoryFallback } from './history.route';
 import { ApiResponse } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
 
 const visionRouter = Router();
+
+/**
+ * @route   GET /api/v1/vision/status
+ * @desc    Check AI Provider status (Ollama / Gemini / VLM)
+ * @access  Public
+ */
+visionRouter.get('/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await aiVisionService.getProviderStatus();
+    return ApiResponse.success(res, status, 'AI Provider status retrieved');
+  } catch (error) {
+    return ApiResponse.serverError(res, 'Failed to retrieve AI provider status');
+  }
+});
 
 const analyzeSchema = z.object({
   image: z.string().min(1, 'Image data in base64 is required'),
@@ -33,7 +47,7 @@ visionRouter.post('/analyze', async (req: Request, res: Response) => {
 
     logger.info(`📸 Processing vision analysis. Mode: ${mode}${prompt ? `, Prompt: "${prompt}"` : ''}`);
 
-    const result = await geminiService.analyzeAssistiveImage(
+    const result = await aiVisionService.analyzeAssistiveImage(
       image,
       mimeType,
       mode as AssistiveMode,
@@ -111,7 +125,7 @@ visionRouter.post('/ask', async (req: Request, res: Response) => {
       return ApiResponse.badRequest(res, 'Question string is required');
     }
 
-    const result = await geminiService.analyzeAssistiveImage(
+    const result = await aiVisionService.analyzeAssistiveImage(
       image || '',
       mimeType,
       'ask',

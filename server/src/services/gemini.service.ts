@@ -135,7 +135,7 @@ Format your output as valid JSON matching this schema:
 /**
  * Generate intelligent fallback responses for development/offline mode
  */
-const generateMockAssistiveResponse = (
+export const generateMockAssistiveResponse = (
   mode: AssistiveMode,
   customQuery?: string
 ): VisionAnalysisResult => {

@@ -1,7 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { logger } from '../utils/logger';
-import { geminiService } from './gemini.service';
+import { aiVisionService } from './aiVision.service';
 import { ScanModel, AssistiveMode } from '../models/scan.model';
 
 export class WebSocketService {
@@ -96,7 +96,7 @@ export class WebSocketService {
         }
 
         try {
-          const result = await geminiService.analyzeAssistiveImage(
+          const result = await aiVisionService.analyzeAssistiveImage(
             imageBase64,
             'image/jpeg',
             mode
@@ -155,7 +155,7 @@ export class WebSocketService {
         });
 
         try {
-          const result = await geminiService.analyzeAssistiveImage(
+          const result = await aiVisionService.analyzeAssistiveImage(
             imageBase64 || '',
             'image/jpeg',
             mode,

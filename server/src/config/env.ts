@@ -13,6 +13,12 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(8).default('lumina_eye_jwt_secret_development_key_12345'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   GEMINI_API_KEY: z.string().optional(),
+  AI_PROVIDER: z.enum(['ollama', 'gemini', 'openai-compatible', 'mock']).default('ollama'),
+  OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
+  OLLAMA_MODEL: z.string().default('moondream'),
+  OPENAI_COMPATIBLE_BASE_URL: z.string().optional(),
+  OPENAI_COMPATIBLE_API_KEY: z.string().optional(),
+  OPENAI_COMPATIBLE_MODEL: z.string().default('moondream'),
   EXPO_ACCESS_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
