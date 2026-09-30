@@ -1,26 +1,39 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Volume2, X, AlertTriangle } from 'lucide-react-native';
-import { colors, brutalistShadow } from '../theme/colors';
-import { VisionResponse } from '../services/api';
+import { Volume2, X, AlertTriangle, Radio } from 'lucide-react-native';
+import { colors } from '../theme/colors';
+import { VisionResponse, AssistiveMode } from '../services/api';
 import { hapticService } from '../services/haptics';
 
 interface SpeechBannerProps {
   description: VisionResponse | null;
+  liveStreamingText?: string;
+  isLiveStreaming?: boolean;
+  activeMode?: AssistiveMode;
   onReplay: () => void;
   onClose: () => void;
 }
 
 export const SpeechBanner: React.FC<SpeechBannerProps> = ({
   description,
+  liveStreamingText,
+  isLiveStreaming,
+  activeMode = 'explore',
   onReplay,
   onClose,
 }) => {
-  if (!description) return null;
+  const hasLiveText = Boolean(liveStreamingText && liveStreamingText.trim().length > 0);
+  if (!description && !hasLiveText) return null;
+
+  const currentMode = description?.mode || activeMode;
+  const displayText = (hasLiveText ? liveStreamingText : description?.spokenSummary) || '';
 
   const isHazard =
-    description.hazardLevel === 'medium' || description.hazardLevel === 'high';
-  const isLowHazard = description.hazardLevel === 'low';
+    description?.hazardLevel === 'medium' ||
+    description?.hazardLevel === 'high' ||
+    (displayText.toLowerCase().includes('danger') || displayText.toLowerCase().includes('hazard') || displayText.toLowerCase().includes('caution'));
+
+  const isLowHazard = description?.hazardLevel === 'low';
 
   const handleReplay = () => {
     hapticService.tap();
@@ -36,7 +49,7 @@ export const SpeechBanner: React.FC<SpeechBannerProps> = ({
   const getTopBorderColor = () => {
     if (isHazard) return colors.hazardHigh;
     if (isLowHazard) return colors.hazardLow;
-    switch (description.mode) {
+    switch (currentMode) {
       case 'read':
         return colors.droneTech;
       case 'color':
@@ -70,9 +83,17 @@ export const SpeechBanner: React.FC<SpeechBannerProps> = ({
             ]}
           >
             <Text style={styles.modeBadgeText}>
-              {description.mode.toUpperCase()}
+              {currentMode.toUpperCase()}
             </Text>
           </View>
+
+          {/* Gemini Live Streaming Indicator */}
+          {hasLiveText && isLiveStreaming && (
+            <View style={styles.liveStreamBadge}>
+              <Radio size={11} color="#FFFFFF" />
+              <Text style={styles.liveStreamBadgeText}>GEMINI LIVE</Text>
+            </View>
+          )}
 
           {isHazard && (
             <View style={styles.hazardBadge}>
@@ -104,37 +125,42 @@ export const SpeechBanner: React.FC<SpeechBannerProps> = ({
       <Text
         style={styles.spokenText}
         accessible={true}
-        accessibilityLabel={`Spoken description: ${description.spokenSummary}`}
+        accessibilityLabel={`Spoken description: ${displayText}`}
       >
-        {description.spokenSummary}
+        {displayText}
+        {hasLiveText && isLiveStreaming && (
+          <Text style={styles.blinkingCursor}> ▍</Text>
+        )}
       </Text>
 
-      {/* Footer Action Bar */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel="Listen again"
-          accessibilityHint="Repeats the audio description out loud"
-          activeOpacity={0.85}
-          onPress={handleReplay}
-          style={styles.replayButton}
-        >
-          <Volume2 size={15} color="#0A0E11" />
-          <Text style={styles.replayText}>LISTEN AGAIN</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Footer Action Bar (show Listen Again when description complete) */}
+      {description && !isLiveStreaming && (
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Listen again"
+            accessibilityHint="Repeats the audio description out loud"
+            activeOpacity={0.85}
+            onPress={handleReplay}
+            style={styles.replayButton}
+          >
+            <Volume2 size={15} color="#0A0E11" />
+            <Text style={styles.replayText}>LISTEN AGAIN</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF', // High-contrast clean white card from Academy
+    backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#0A0E11',
     borderTopWidth: 5,
-    borderRadius: 4, // Sharp brutalist corner
+    borderRadius: 4,
     padding: 16,
     marginHorizontal: 16,
     marginBottom: 12,
@@ -168,6 +194,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.8,
+  },
+  liveStreamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D9488', // Emerald / Teal live badge
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 2,
+    gap: 4,
+  },
+  liveStreamBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
   hazardBadge: {
     flexDirection: 'row',
@@ -206,8 +247,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '700',
-    color: '#171717', // High contrast dark text from Academy
-    marginBottom: 12,
+    color: '#171717',
+    marginBottom: 8,
+  },
+  blinkingCursor: {
+    color: colors.primary,
+    fontWeight: '900',
   },
   actionRow: {
     flexDirection: 'row',
@@ -216,6 +261,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
     paddingTop: 10,
+    marginTop: 4,
   },
   replayButton: {
     flexDirection: 'row',
@@ -224,7 +270,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 14,
     borderRadius: 3,
-    backgroundColor: colors.primary, // A1 Primary coral
+    backgroundColor: colors.primary,
     borderWidth: 2,
     borderColor: '#0A0E11',
     shadowColor: '#0A0E11',
@@ -240,4 +286,3 @@ const styles = StyleSheet.create({
     color: '#0A0E11',
   },
 });
-

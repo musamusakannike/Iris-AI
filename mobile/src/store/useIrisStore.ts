@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService, AssistiveMode, UserSettings, VisionResponse } from '../services/api';
 import { speechService } from '../services/speech';
 import { hapticService } from '../services/haptics';
+import { irisWebSocket } from '../services/websocket';
 
 export type AIState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
@@ -12,6 +13,8 @@ interface IrisState {
   activeMode: AssistiveMode;
   aiState: AIState;
   isLiveScanning: boolean;
+  isGeminiLiveStreaming: boolean;
+  liveStreamingTranscript: string;
   torchOn: boolean;
   currentDescription: VisionResponse | null;
   currentSpokenText: string;
@@ -25,6 +28,9 @@ interface IrisState {
   setAiState: (state: AIState) => void;
   toggleLiveScanning: () => void;
   setLiveScanning: (active: boolean) => void;
+  setLiveStreamingTranscript: (text: string) => void;
+  appendLiveStreamingTranscript: (chunk: string, fullText?: string) => void;
+  clearLiveStreamingTranscript: () => void;
   toggleTorch: () => void;
   setCurrentDescription: (desc: VisionResponse | null) => void;
   clearCurrentDescription: () => void;
@@ -44,6 +50,8 @@ export const useIrisStore = create<IrisState>((set, get) => ({
   activeMode: 'explore',
   aiState: 'idle',
   isLiveScanning: false,
+  isGeminiLiveStreaming: false,
+  liveStreamingTranscript: '',
   torchOn: false,
   currentDescription: null,
   currentSpokenText: '',
@@ -65,6 +73,9 @@ export const useIrisStore = create<IrisState>((set, get) => ({
   setActiveMode: (mode: AssistiveMode) => {
     set({ activeMode: mode });
     hapticService.selection();
+    // Notify Gemini Live session about mode change if active
+    irisWebSocket.setMode(mode);
+
     const modeNames: Record<AssistiveMode, string> = {
       explore: 'Explore Surroundings Mode',
       read: 'Read and OCR Mode',
@@ -81,17 +92,52 @@ export const useIrisStore = create<IrisState>((set, get) => ({
 
   toggleLiveScanning: () => {
     const nextState = !get().isLiveScanning;
-    set({ isLiveScanning: nextState });
+    set({
+      isLiveScanning: nextState,
+      isGeminiLiveStreaming: nextState,
+      liveStreamingTranscript: nextState ? get().liveStreamingTranscript : '',
+    });
     hapticService.triggerHeavy();
+
     if (nextState) {
-      speechService.announce('Live continuous scan started');
+      irisWebSocket.startLiveSession(get().activeMode);
+      speechService.announce('Gemini Live mode active. Continuous real-time assistance.');
     } else {
-      speechService.announce('Live continuous scan stopped');
+      irisWebSocket.stopLiveSession();
+      speechService.stop();
+      speechService.announce('Live mode stopped');
     }
   },
 
   setLiveScanning: (active: boolean) => {
-    set({ isLiveScanning: active });
+    set({ isLiveScanning: active, isGeminiLiveStreaming: active });
+    if (active) {
+      irisWebSocket.startLiveSession(get().activeMode);
+    } else {
+      irisWebSocket.stopLiveSession();
+    }
+  },
+
+  setLiveStreamingTranscript: (text: string) => {
+    set({
+      liveStreamingTranscript: text,
+      isGeminiLiveStreaming: text.length > 0,
+    });
+  },
+
+  appendLiveStreamingTranscript: (chunk: string, fullText?: string) => {
+    set((state) => ({
+      liveStreamingTranscript: fullText !== undefined ? fullText : state.liveStreamingTranscript + chunk,
+      isGeminiLiveStreaming: true,
+      aiState: 'speaking',
+    }));
+  },
+
+  clearLiveStreamingTranscript: () => {
+    set({
+      liveStreamingTranscript: '',
+      isGeminiLiveStreaming: false,
+    });
   },
 
   toggleTorch: () => {

@@ -60,6 +60,10 @@ export default function IrisHomeScreen() {
     aiState,
     setAiState,
     isLiveScanning,
+    isGeminiLiveStreaming,
+    liveStreamingTranscript,
+    appendLiveStreamingTranscript,
+    clearLiveStreamingTranscript,
     toggleLiveScanning,
     torchOn,
     toggleTorch,
@@ -70,22 +74,33 @@ export default function IrisHomeScreen() {
     stopSpeaking,
   } = useIrisStore();
 
-  // Announce welcome message on mount
+  // Announce welcome message on mount and connect WebSocket
   useEffect(() => {
+    irisWebSocket.connect();
     speechService.announce(
-      'Welcome to IRIS AI. Camera is active. Tap the large Describe button or double tap anywhere to hear your surroundings.'
+      'Welcome to IRIS AI. Camera is active with Gemini Live. Tap Describe or turn on Live for continuous spatial guidance.'
     );
   }, []);
 
-  // Listen to WebSocket AI descriptions and hazard alerts
+  // Listen to WebSocket AI descriptions, streaming chunks, and hazard alerts
   useEffect(() => {
     const unsubscribe = irisWebSocket.subscribe({
-      onDescription: (data) => {
-        setCurrentDescription(data);
+      onTranscriptionChunk: (chunk, fullText) => {
+        appendLiveStreamingTranscript(chunk, fullText);
         setIsProcessing(false);
       },
-      onHazardAlert: (hazard) => {
+      onDescription: (data) => {
+        setCurrentDescription(data);
+        clearLiveStreamingTranscript();
+        setIsProcessing(false);
+      },
+      onHazardAlert: () => {
         hapticService.warning();
+      },
+      onInterrupted: () => {
+        stopSpeaking();
+        clearLiveStreamingTranscript();
+        hapticService.tap();
       },
     });
 
@@ -94,7 +109,7 @@ export default function IrisHomeScreen() {
     };
   }, []);
 
-  // Continuous Live Scan Loop
+  // Continuous Gemini Live Scan Loop (1 FPS as specified by Live API)
   useEffect(() => {
     if (isLiveScanning) {
       const runContinuousScan = async () => {
@@ -105,7 +120,7 @@ export default function IrisHomeScreen() {
       };
 
       runContinuousScan();
-      liveScanTimerRef.current = setInterval(runContinuousScan, 3500);
+      liveScanTimerRef.current = setInterval(runContinuousScan, 1200);
     } else {
       if (liveScanTimerRef.current) {
         clearInterval(liveScanTimerRef.current);
@@ -148,12 +163,17 @@ export default function IrisHomeScreen() {
 
         const base64Data = photo.base64;
 
+        if (query && irisWebSocket.getStatus() === 'connected') {
+          irisWebSocket.sendVoiceQuery(base64Data, query, mode);
+          return;
+        }
+
         if (isStream && irisWebSocket.getStatus() === 'connected') {
           irisWebSocket.sendFrame(base64Data, mode);
           return;
         }
 
-        // Send via REST API
+        // Send via REST API fallback
         let result;
         if (query) {
           result = await apiService.askQuestion(base64Data, query);
@@ -338,7 +358,7 @@ export default function IrisHomeScreen() {
             {isLiveScanning && (
               <View style={styles.liveBadge}>
                 <Radio size={10} color="#FFFFFF" />
-                <Text style={styles.liveBadgeText}>LIVE</Text>
+                <Text style={styles.liveBadgeText}>GEMINI LIVE</Text>
               </View>
             )}
           </View>
@@ -404,22 +424,28 @@ export default function IrisHomeScreen() {
         {/* Floating Spoken Subtitle Banner */}
         <SpeechBanner
           description={currentDescription}
+          liveStreamingText={liveStreamingTranscript}
+          isLiveStreaming={isLiveScanning && isGeminiLiveStreaming}
+          activeMode={activeMode}
           onReplay={() => {
             if (currentDescription?.spokenSummary) {
               speakDescription(currentDescription.spokenSummary);
             }
           }}
-          onClose={clearCurrentDescription}
+          onClose={() => {
+            clearCurrentDescription();
+            clearLiveStreamingTranscript();
+          }}
         />
 
         {/* Primary Controls Row */}
         <SafeAreaView edges={['bottom']} style={styles.controlsRow}>
-          {/* Continuous Live Scan Toggle */}
+          {/* Continuous Gemini Live Scan Toggle */}
           <TouchableOpacity
             accessible={true}
             accessibilityRole="button"
-            accessibilityLabel={`Continuous live scan: ${isLiveScanning ? 'active' : 'inactive'}`}
-            accessibilityHint="Passively scans and announces changes every few seconds"
+            accessibilityLabel={`Gemini live scan: ${isLiveScanning ? 'active' : 'inactive'}`}
+            accessibilityHint="Continuously streams camera and voice with Gemini Live"
             activeOpacity={0.8}
             onPress={toggleLiveScanning}
             style={[
@@ -437,7 +463,7 @@ export default function IrisHomeScreen() {
                 isLiveScanning ? { color: '#FFFFFF' } : { color: colors.textSecondary },
               ]}
             >
-              {isLiveScanning ? 'LIVE ON' : 'LIVE'}
+              {isLiveScanning ? 'LIVE ON' : 'GEMINI LIVE'}
             </Text>
           </TouchableOpacity>
 

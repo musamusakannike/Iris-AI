@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { logger } from '../utils/logger';
 import { aiVisionService } from './aiVision.service';
+import { geminiLiveService } from './geminiLive.service';
 import { ScanModel, AssistiveMode } from '../models/scan.model';
 
 export class WebSocketService {
@@ -32,10 +33,11 @@ export class WebSocketService {
       const ip = req.socket.remoteAddress;
       logger.info(`🔌 WebSocket client connected [IP: ${ip}]. Total active: ${this.clients.size}`);
 
-      // Send initial welcome handshake
+      // Send initial welcome handshake with live capabilities info
       this.sendToClient(ws, {
         type: 'CONNECTED',
-        message: 'Connected to IRIS AI Real-Time Stream Engine',
+        message: 'Connected to IRIS AI Real-Time Stream Engine (Gemini Live Ready)',
+        geminiLiveEnabled: geminiLiveService.isConfigured(),
         timestamp: new Date().toISOString(),
       });
 
@@ -49,6 +51,7 @@ export class WebSocketService {
       });
 
       ws.on('close', () => {
+        geminiLiveService.closeSession(ws);
         this.clients.delete(ws);
         this.lastProcessedTimestamp.delete(ws);
         logger.info(`🔌 WebSocket client disconnected. Total active: ${this.clients.size}`);
@@ -77,23 +80,65 @@ export class WebSocketService {
         });
         break;
 
+      case 'START_LIVE_SESSION': {
+        const mode = (message.mode as AssistiveMode) || 'explore';
+        logger.info(`✨ Client requested START_LIVE_SESSION with mode: ${mode}`);
+        const sessionState = await geminiLiveService.getOrCreateSession(ws, mode);
+        this.sendToClient(ws, {
+          type: 'STATUS_UPDATE',
+          status: sessionState ? 'LIVE_ACTIVE' : 'FALLBACK_ACTIVE',
+          provider: sessionState ? 'gemini-live' : 'standard-ai',
+          message: sessionState
+            ? `Gemini Live active (${sessionState.model})`
+            : 'Gemini Live offline; fallback assistive stream active',
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+
+      case 'STOP_LIVE_SESSION': {
+        logger.info('🛑 Client requested STOP_LIVE_SESSION');
+        geminiLiveService.closeSession(ws);
+        this.sendToClient(ws, {
+          type: 'STATUS_UPDATE',
+          status: 'LIVE_STOPPED',
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+
+      case 'MODE_CHANGE': {
+        const mode = (message.mode as AssistiveMode) || 'explore';
+        logger.info(`🔄 Mode change received: ${mode}`);
+        await geminiLiveService.handleModeChange(ws, mode);
+        break;
+      }
+
       case 'FRAME_STREAM': {
         // Continuous live camera stream frame
-        const now = Date.now();
-        const lastTime = this.lastProcessedTimestamp.get(ws) || 0;
-
-        // Throttle frame processing to prevent overload (e.g. 1 frame every 1.5 seconds max)
-        if (now - lastTime < 1400) {
-          return;
-        }
-        this.lastProcessedTimestamp.set(ws, now);
-
         const imageBase64 = message.image as string;
         const mode = (message.mode as AssistiveMode) || 'explore';
 
         if (!imageBase64) {
           return;
         }
+
+        // 1. Prioritize Gemini Live real-time bidirectional stream
+        if (geminiLiveService.isConfigured()) {
+          const handled = await geminiLiveService.handleFrame(ws, imageBase64, mode);
+          if (handled) {
+            return;
+          }
+        }
+
+        // 2. Fallback: REST AI Vision Gateway (Ollama / Gemini REST / Mock)
+        const now = Date.now();
+        const lastTime = this.lastProcessedTimestamp.get(ws) || 0;
+
+        if (now - lastTime < 1400) {
+          return;
+        }
+        this.lastProcessedTimestamp.set(ws, now);
 
         try {
           const result = await aiVisionService.analyzeAssistiveImage(
@@ -110,6 +155,7 @@ export class WebSocketService {
             hazardLevel: result.hazardLevel,
             hazardDetails: result.hazardDetails,
             detectedEntities: result.detectedEntities,
+            provider: 'fallback',
             timestamp: new Date().toISOString(),
           });
 
@@ -136,7 +182,7 @@ export class WebSocketService {
             logger.debug('Non-blocking DB save error for stream frame:', dbErr.message);
           });
         } catch (streamErr) {
-          logger.error('Error processing live frame in WebSocket:', streamErr);
+          logger.error('Error processing live frame in fallback WebSocket:', streamErr);
         }
         break;
       }
@@ -154,6 +200,15 @@ export class WebSocketService {
           timestamp: new Date().toISOString(),
         });
 
+        // 1. Try Gemini Live query first
+        if (geminiLiveService.isConfigured()) {
+          const handled = await geminiLiveService.handleVoiceQuery(ws, question, imageBase64, mode);
+          if (handled) {
+            return;
+          }
+        }
+
+        // 2. Fallback to AI Vision REST
         try {
           const result = await aiVisionService.analyzeAssistiveImage(
             imageBase64 || '',
@@ -171,6 +226,7 @@ export class WebSocketService {
             hazardLevel: result.hazardLevel,
             hazardDetails: result.hazardDetails,
             detectedEntities: result.detectedEntities,
+            provider: 'fallback',
             timestamp: new Date().toISOString(),
           });
 
@@ -188,7 +244,7 @@ export class WebSocketService {
             logger.debug('Non-blocking DB save error for voice query:', dbErr.message);
           });
         } catch (queryErr) {
-          logger.error('Error handling voice query in WebSocket:', queryErr);
+          logger.error('Error handling voice query in WebSocket fallback:', queryErr);
           this.sendToClient(ws, {
             type: 'ERROR',
             message: 'Failed to process voice query with current scene.',

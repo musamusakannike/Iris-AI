@@ -13,6 +13,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(8).default('lumina_eye_jwt_secret_development_key_12345'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   GEMINI_API_KEY: z.string().optional(),
+  GEMINI_LIVE_MODEL: z.string().default('gemini-3.1-flash-live-preview'),
   AI_PROVIDER: z.enum(['ollama', 'gemini', 'openai-compatible', 'mock']).default('ollama'),
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
   OLLAMA_MODEL: z.string().default('moondream'),

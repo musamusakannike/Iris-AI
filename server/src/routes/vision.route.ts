@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { aiVisionService } from '../services/aiVision.service';
+import { geminiLiveService } from '../services/geminiLive.service';
 import { ScanModel, AssistiveMode } from '../models/scan.model';
 import { saveToHistoryFallback } from './history.route';
 import { ApiResponse } from '../utils/apiResponse';
@@ -11,15 +12,53 @@ const visionRouter = Router();
 
 /**
  * @route   GET /api/v1/vision/status
- * @desc    Check AI Provider status (Ollama / Gemini / VLM)
+ * @desc    Check AI Provider status (Ollama / Gemini / Gemini Live / VLM)
  * @access  Public
  */
 visionRouter.get('/status', async (_req: Request, res: Response) => {
   try {
     const status = await aiVisionService.getProviderStatus();
-    return ApiResponse.success(res, status, 'AI Provider status retrieved');
+    const enrichedStatus = {
+      ...status,
+      geminiLive: {
+        available: geminiLiveService.isConfigured(),
+        activeSessions: geminiLiveService.getActiveSessionsCount(),
+        primaryModel: process.env.GEMINI_LIVE_MODEL || 'gemini-3.1-flash-live-preview',
+      },
+    };
+    return ApiResponse.success(res, enrichedStatus, 'AI Provider status retrieved');
   } catch (error) {
     return ApiResponse.serverError(res, 'Failed to retrieve AI provider status');
+  }
+});
+
+/**
+ * @route   POST /api/v1/vision/ephemeral-token
+ * @desc    Generate an ephemeral token for direct client-to-server Gemini Live WebSocket connection
+ * @access  Public
+ */
+visionRouter.post('/ephemeral-token', async (_req: Request, res: Response) => {
+  try {
+    if (!geminiLiveService.isConfigured()) {
+      return ApiResponse.badRequest(res, 'Gemini Live is not configured on the server');
+    }
+
+    const token = await geminiLiveService.createEphemeralToken();
+    if (!token) {
+      return ApiResponse.serverError(res, 'Failed to generate ephemeral token for Gemini Live');
+    }
+
+    return ApiResponse.success(
+      res,
+      {
+        token: token.name,
+        endpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained',
+      },
+      'Ephemeral token created for Gemini Live session'
+    );
+  } catch (error) {
+    logger.error('Error creating ephemeral token:', error);
+    return ApiResponse.serverError(res, 'Failed to create ephemeral token');
   }
 });
 
