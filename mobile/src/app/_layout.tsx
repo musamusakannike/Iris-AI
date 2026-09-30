@@ -1,21 +1,17 @@
 import React, { useEffect } from 'react';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { HelpCircle, History, Settings, Eye } from 'lucide-react-native';
-import { GlassSurface } from '../components/glass-surface';
 import { colors } from '../theme/colors';
-import { hapticService } from '../services/haptics';
 import { irisWebSocket } from '../services/websocket';
 import { useIrisStore } from '../store/useIrisStore';
 
 export default function RootLayout() {
   const { fetchHistory, loadSettings } = useIrisStore();
+  const colorScheme = useColorScheme();
 
   useEffect(() => {
-    // Initialize background services and load preferences
     irisWebSocket.connect();
     fetchHistory();
     loadSettings();
@@ -26,58 +22,56 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerStyle: {
-              backgroundColor: colors.black,
-            },
-            headerTintColor: colors.primary,
-            headerTitleStyle: {
-              fontWeight: '900',
-              fontSize: 16,
-              color: '#FFFFFF',
-            },
-            headerBackTitleStyle: {
-              fontSize: 14,
-            },
-            contentStyle: {
-              backgroundColor: colors.background,
-            },
-            animation: 'fade',
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.systemBackground }}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerLargeTitleShadowVisible: false,
+          headerBlurEffect: colorScheme === 'dark' ? 'systemChromeMaterialDark' : 'systemChromeMaterial',
+          headerTintColor: colors.accent,
+          headerTitleStyle: {
+            color: colors.label,
+          },
+          headerLargeStyle: { backgroundColor: 'transparent' },
+          headerBackButtonDisplayMode: 'minimal',
+          contentStyle: {
+            backgroundColor: colors.groupedBackground,
+          },
+        }}
+      >
+        <Stack.Screen
+          name="index"
+          options={{
+            headerShown: false,
           }}
-        >
-          <Stack.Screen
-            name="index"
-            options={{
-              headerShown: false, // We use custom Academy HUD in camera view
-            }}
-          />
-          <Stack.Screen
-            name="guide"
-            options={{
-              title: 'HOW TO USE IRIS',
-              headerBackTitle: 'CAMERA',
-            }}
-          />
-          <Stack.Screen
-            name="history"
-            options={{
-              title: 'SCAN HISTORY',
-              headerBackTitle: 'CAMERA',
-            }}
-          />
-          <Stack.Screen
-            name="settings"
-            options={{
-              title: 'PREFERENCES',
-              headerBackTitle: 'CAMERA',
-            }}
-          />
-        </Stack>
-      </SafeAreaProvider>
+        />
+        <Stack.Screen
+          name="guide"
+          options={{
+            title: 'How to Use IRIS',
+            headerLargeTitle: true,
+            headerBackTitle: 'Camera',
+          }}
+        />
+        <Stack.Screen
+          name="history"
+          options={{
+            title: 'Scan History',
+            headerLargeTitle: true,
+            headerBackTitle: 'Camera',
+          }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{
+            title: 'Preferences',
+            headerLargeTitle: true,
+            headerBackTitle: 'Camera',
+          }}
+        />
+      </Stack>
     </GestureHandlerRootView>
   );
 }

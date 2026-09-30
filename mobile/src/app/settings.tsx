@@ -3,76 +3,57 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   TextInput,
-  StyleSheet,
   Switch,
-  ActivityIndicator,
-  Modal,
   Pressable,
+  Modal,
+  FlatList,
+  ActivityIndicator,
+  StyleSheet,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Volume2,
-  Sliders,
-  ShieldAlert,
-  Server,
-  Check,
-  RefreshCw,
-  Zap,
-  Mic,
-  Headphones,
-  Sparkles,
-  Play,
-  Search,
-  Globe,
-  Radio,
-  X,
-  ChevronRight,
-} from 'lucide-react-native';
-import { colors, brutalistShadow } from '../theme/colors';
+import { Stack } from 'expo-router';
+import { Slider } from '@expo/ui/community/slider';
+import { SymbolView } from 'expo-symbols';
+import { colors } from '../theme/colors';
 import { useIrisStore } from '../store/useIrisStore';
 import { speechService, VoiceInfo } from '../services/speech';
 import { hapticService } from '../services/haptics';
 import { setApiBaseUrl, getApiBaseUrl } from '../services/api';
 import { setWsUrl, irisWebSocket } from '../services/websocket';
 
-const SPEECH_RATES = [
-  { label: '0.8x', value: 0.8, description: 'SLOWER' },
-  { label: '1.0x', value: 1.0, description: 'NORMAL' },
-  { label: '1.25x', value: 1.25, description: 'FAST' },
-  { label: '1.5x', value: 1.5, description: 'VERY FAST' },
-];
-
-const SPEECH_PITCHES = [
-  { label: '0.85x', value: 0.85, name: 'DEEP', description: 'Low warm tone' },
-  { label: '1.0x', value: 1.0, name: 'NATURAL', description: 'Standard balanced' },
-  { label: '1.15x', value: 1.15, name: 'CLEAR', description: 'Crisp articulation' },
-  { label: '1.3x', value: 1.3, name: 'BRIGHT', description: 'High resonance' },
-];
-
-// Fallback curated voices in case device returns empty list (e.g. some simulator environments)
 const CURATED_FALLBACK_VOICES: VoiceInfo[] = [
-  { identifier: 'default', name: 'Iris Auto-Enhanced Default', quality: 'Enhanced HD', language: 'en-US', isEnhanced: true, isNeural: true, badge: 'HD NEURAL' },
-  { identifier: 'en-us-studio', name: 'Samantha (Studio HD)', quality: 'Enhanced HD', language: 'en-US', isEnhanced: true, isNeural: true, badge: 'HD NEURAL' },
-  { identifier: 'en-gb-clarity', name: 'Daniel (Clear British)', quality: 'Enhanced HD', language: 'en-GB', isEnhanced: true, isNeural: true, badge: 'STUDIO' },
-  { identifier: 'en-au-warm', name: 'Karen (Natural Pacific)', quality: 'Natural', language: 'en-AU', isEnhanced: false, isNeural: false, badge: 'NATURAL' },
-  { identifier: 'en-us-neural', name: 'Alex (Deep Focus)', quality: 'Enhanced HD', language: 'en-US', isEnhanced: true, isNeural: true, badge: 'HD NEURAL' },
+  {
+    identifier: 'default',
+    name: 'Iris Auto-Enhanced Default',
+    quality: 'Enhanced HD',
+    language: 'en-US',
+    isEnhanced: true,
+    isNeural: true,
+    badge: 'HD NEURAL',
+  },
+  {
+    identifier: 'en-us-studio',
+    name: 'Samantha (Studio HD)',
+    quality: 'Enhanced HD',
+    language: 'en-US',
+    isEnhanced: true,
+    isNeural: true,
+    badge: 'STUDIO',
+  },
 ];
 
 export default function SettingsScreen() {
   const { settings, updateSettings } = useIrisStore();
-  const [serverHost, setServerHost] = useState(
+  const [serverHostText, setServerHostText] = useState(
     getApiBaseUrl().replace('/api/v1', '')
   );
   const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
-  // Voice State & Modal
   const [availableVoices, setAvailableVoices] = useState<VoiceInfo[]>([]);
-  const [isLoadingVoices, setIsLoadingVoices] = useState(true);
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
-  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<'ALL' | 'EN' | 'ENHANCED'>('EN');
+  const [voiceFilter, setVoiceFilter] = useState<'EN' | 'ENHANCED' | 'ALL'>('EN');
   const [voiceSearchQuery, setVoiceSearchQuery] = useState('');
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [showVoiceGuide, setShowVoiceGuide] = useState(false);
@@ -83,96 +64,73 @@ export default function SettingsScreen() {
   }, []);
 
   const loadVoices = async () => {
-    setIsLoadingVoices(true);
     try {
       const voices = await speechService.getAvailableVoices();
-      if (voices && voices.length > 0) {
-        setAvailableVoices(voices);
-      } else {
-        setAvailableVoices(CURATED_FALLBACK_VOICES);
-      }
-    } catch (e) {
+      setAvailableVoices(voices && voices.length > 0 ? voices : CURATED_FALLBACK_VOICES);
+    } catch {
       setAvailableVoices(CURATED_FALLBACK_VOICES);
-    } finally {
-      setIsLoadingVoices(false);
     }
   };
 
-  // Filter and prioritize voices
   const filteredVoices = useMemo(() => {
     let list = availableVoices;
-
     if (voiceSearchQuery.trim()) {
       const q = voiceSearchQuery.toLowerCase();
       list = list.filter(
         (v) =>
           v.name.toLowerCase().includes(q) ||
           v.language.toLowerCase().includes(q) ||
-          v.identifier.toLowerCase().includes(q) ||
-          (v.badge && v.badge.toLowerCase().includes(q))
+          v.identifier.toLowerCase().includes(q)
       );
-    } else {
-      if (selectedVoiceFilter === 'EN') {
-        list = list.filter((v) => v.language.toLowerCase().startsWith('en'));
-      } else if (selectedVoiceFilter === 'ENHANCED') {
-        list = list.filter(
-          (v) => v.isEnhanced || v.badge === 'HD NEURAL' || v.badge === 'STUDIO'
-        );
-      }
+    } else if (voiceFilter === 'EN') {
+      list = list.filter((v) => v.language.toLowerCase().startsWith('en'));
+    } else if (voiceFilter === 'ENHANCED') {
+      list = list.filter((v) => v.isEnhanced || v.badge === 'HD NEURAL' || v.badge === 'STUDIO');
     }
+    return list.slice(0, 50);
+  }, [availableVoices, voiceFilter, voiceSearchQuery]);
 
-    return list;
-  }, [availableVoices, selectedVoiceFilter, voiceSearchQuery]);
-
-  const handleOpenVoiceModal = () => {
-    hapticService.tap();
-    setIsVoiceModalVisible(true);
-    speechService.announce('Voice selection dialog opened.');
-  };
-
-  const handleCloseVoiceModal = () => {
-    hapticService.tap();
-    setIsVoiceModalVisible(false);
-  };
+  const currentActiveVoice = useMemo(() => {
+    if (!settings.voiceIdentifier || settings.voiceIdentifier === 'default') {
+      const best = availableVoices.find((v) => v.isEnhanced) || availableVoices[0];
+      return (
+        best || {
+          identifier: 'default',
+          name: 'Iris Neural Default',
+          language: 'en-US',
+          quality: 'Enhanced HD',
+          badge: 'HD NEURAL' as const,
+          isEnhanced: true,
+          isNeural: true,
+        }
+      );
+    }
+    return (
+      availableVoices.find((v) => v.identifier === settings.voiceIdentifier) || {
+        identifier: settings.voiceIdentifier,
+        name: 'Custom Device Voice',
+        language: 'en-US',
+        quality: 'Default',
+        isEnhanced: false,
+        isNeural: false,
+      }
+    );
+  }, [settings.voiceIdentifier, availableVoices]);
 
   const handleSelectVoice = (voice: VoiceInfo) => {
     hapticService.selection();
     const voiceId = voice.identifier === 'default' ? undefined : voice.identifier;
     updateSettings({ voiceIdentifier: voiceId });
     speechService.announce(`Selected ${voice.name}`);
+    setIsVoiceModalVisible(false);
   };
 
   const handlePreviewVoice = async (voice: VoiceInfo) => {
     hapticService.tap();
     setPreviewingVoiceId(voice.identifier);
     const voiceId = voice.identifier === 'default' ? undefined : voice.identifier;
-    await speechService.previewVoice(
-      voiceId,
-      voice.name,
-      settings.speechPitch,
-      settings.speechRate
-    );
+    await speechService.previewVoice(voiceId, voice.name, settings.speechPitch, settings.speechRate);
     setPreviewingVoiceId(null);
-  };
-
-  const handlePitchChange = (pitch: number, name: string) => {
-    hapticService.selection();
-    updateSettings({ speechPitch: pitch });
-    speechService.speak(`Voice tone set to ${name}`, {
-      pitch,
-      rate: settings.speechRate,
-      voice: settings.voiceIdentifier,
-    });
-  };
-
-  const handleRateChange = (rate: number) => {
-    hapticService.selection();
-    updateSettings({ speechRate: rate });
-    speechService.speak(`Speech speed set to ${rate}x`, {
-      rate,
-      pitch: settings.speechPitch,
-      voice: settings.voiceIdentifier,
-    });
   };
 
   const handleTestCurrentVoiceSetup = () => {
@@ -187,35 +145,13 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleVerbosityChange = (verbosity: 'concise' | 'detailed') => {
-    hapticService.selection();
-    updateSettings({ verbosity });
-    speechService.announce(
-      verbosity === 'concise'
-        ? 'Concise mode active. Quick summaries.'
-        : 'Detailed mode active. Full spatial descriptions.'
-    );
-  };
-
-  const handleToggleHazardSound = (val: boolean) => {
-    hapticService.tap();
-    updateSettings({ hazardAlertSound: val });
-  };
-
-  const handleToggleHazardVibration = (val: boolean) => {
-    hapticService.tap();
-    updateSettings({ hazardVibration: val });
-  };
-
   const handleSaveServerHost = () => {
-    const trimmed = serverHost.trim();
+    const trimmed = serverHostText.trim();
     if (!trimmed) return;
-
     setApiBaseUrl(trimmed);
     const wsUrl = trimmed.replace(/^http/, 'ws') + '/ws';
     setWsUrl(wsUrl);
     irisWebSocket.connect(wsUrl);
-
     hapticService.success();
     speechService.announce('Server address updated.');
   };
@@ -224,7 +160,7 @@ export default function SettingsScreen() {
     setIsTesting(true);
     setTestSuccess(null);
     try {
-      const res = await fetch(`${serverHost.trim()}/api/v1/health`);
+      const res = await fetch(`${serverHostText.trim()}/api/v1/health`);
       if (res.ok) {
         setTestSuccess(true);
         hapticService.success();
@@ -241,1573 +177,795 @@ export default function SettingsScreen() {
     }
   };
 
-  // Find active voice details
-  const currentActiveVoice = useMemo(() => {
-    if (!settings.voiceIdentifier || settings.voiceIdentifier === 'default') {
-      const best = availableVoices.find((v) => v.isEnhanced) || availableVoices[0];
-      if (best) {
-        return {
-          ...best,
-          name: `${best.name} (Auto-Enhanced)`,
-          badge: (best.badge || 'HD NEURAL') as any,
-        };
-      }
-      return {
-        identifier: 'default',
-        name: 'Iris Neural Default',
-        language: 'en-US',
-        quality: 'Enhanced HD',
-        badge: 'HD NEURAL' as const,
-        isEnhanced: true,
-        isNeural: true,
-      };
-    }
-    const found = availableVoices.find((v) => v.identifier === settings.voiceIdentifier);
-    return (
-      found || {
-        identifier: settings.voiceIdentifier,
-        name: 'Custom Device Voice',
-        language: 'en-US',
-        quality: 'Default',
-        isEnhanced: false,
-        isNeural: false,
-      }
-    );
-  }, [settings.voiceIdentifier, availableVoices]);
+  const pitchLabel =
+    Math.abs(settings.speechPitch - 0.85) < 0.05
+      ? 'Deep'
+      : Math.abs(settings.speechPitch - 1.15) < 0.05
+        ? 'Clear'
+        : settings.speechPitch > 1.2
+          ? 'Bright'
+          : 'Natural';
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: 'Preferences',
+          headerLargeTitle: true,
+          headerRight: () => (
+            <Pressable
+              hitSlop={12}
+              onPress={handleTestCurrentVoiceSetup}
+              accessibilityLabel="Test current voice speech"
+              accessibilityRole="button"
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
+            >
+              <SymbolView
+                name="speaker.wave.2.fill"
+                tintColor={colors.accent}
+                size={22}
+                resizeMode="scaleAspectFit"
+              />
+            </Pressable>
+          ),
+        }}
+      />
+
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
       >
-        {/* VOICE & PERSONA SELECTION CARD */}
-        <View style={[styles.sectionCard, { borderTopColor: colors.primary }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconBox, { backgroundColor: colors.primary }]}>
-              <Headphones size={16} color="#0A0E11" />
-            </View>
-            <Text style={styles.sectionTitle}>AI VOICE & PERSONA</Text>
-          </View>
-          <Text style={styles.sectionDescription}>
-            High-definition on-device neural voice for zero-latency offline assistance
-          </Text>
-
-          {/* Active Voice Feature Card with BottomSheet Trigger */}
-          <View style={styles.activeVoiceHeroCard}>
-            <View style={styles.activeVoiceHeroTop}>
-              <View style={styles.activeVoiceIconBadge}>
-                <Radio size={16} color={colors.primary} />
-              </View>
-              <View style={styles.activeVoiceHeroInfo}>
-                <View style={styles.activeVoiceHeroTitleRow}>
-                  <Text style={styles.activeVoiceHeroName} numberOfLines={1}>
-                    {currentActiveVoice.name}
-                  </Text>
-                  <View style={styles.languageBadge}>
-                    <Text style={styles.languageBadgeText}>
-                      {currentActiveVoice.language.toUpperCase()}
-                    </Text>
-                  </View>
-                  {currentActiveVoice.badge === 'HD NEURAL' && (
-                    <View style={styles.enhancedBadge}>
-                      <Text style={styles.enhancedBadgeText}>⚡ HD NEURAL</Text>
-                    </View>
-                  )}
-                  {currentActiveVoice.badge === 'STUDIO' && (
-                    <View style={styles.studioBadge}>
-                      <Text style={styles.studioBadgeText}>STUDIO</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.activeVoiceHeroSubtitle} numberOfLines={1}>
-                  100% OFFLINE • ZERO LATENCY • {currentActiveVoice.identifier}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.activeVoiceHeroActions}>
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Preview active voice"
-                onPress={() => handlePreviewVoice(currentActiveVoice)}
-                style={styles.heroPreviewButton}
-              >
-                {previewingVoiceId === currentActiveVoice.identifier ? (
-                  <ActivityIndicator size={13} color="#0A0E11" />
-                ) : (
-                  <Play size={13} color="#0A0E11" />
-                )}
-                <Text style={styles.heroPreviewButtonText}>PREVIEW VOICE</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Switch AI voice in bottom sheet"
-                onPress={handleOpenVoiceModal}
-                style={styles.switchVoiceButton}
-              >
-                <Text style={styles.switchVoiceButtonText}>CHANGE VOICE</Text>
-                <ChevronRight size={15} color="#0A0E11" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Test Voice Setup Button */}
-          <TouchableOpacity
-            accessible={true}
+        {/* VOICE SECTION */}
+        <Text style={styles.sectionHeader}>VOICE</Text>
+        <View style={styles.card}>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => {
+              hapticService.tap();
+              setIsVoiceModalVisible(true);
+            }}
             accessibilityRole="button"
-            accessibilityLabel="Test entire active voice configuration"
-            onPress={handleTestCurrentVoiceSetup}
-            style={styles.masterTestButton}
+            accessibilityLabel="Change voice"
           >
-            <Volume2 size={16} color="#0A0E11" />
-            <Text style={styles.masterTestButtonText}>
-              TEST ACTIVE VOICE SETUP
-            </Text>
-          </TouchableOpacity>
+            <View style={styles.rowContent}>
+              <Text style={styles.rowTitle}>Change Voice</Text>
+              <Text style={styles.rowSubtitle} numberOfLines={1}>
+                {`${currentActiveVoice.name} · ${currentActiveVoice.language}`}
+              </Text>
+            </View>
+            <SymbolView
+              name="chevron.right"
+              tintColor={colors.textMuted}
+              size={14}
+              resizeMode="scaleAspectFit"
+            />
+          </Pressable>
+
+          <View style={styles.separator} />
+
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => handlePreviewVoice(currentActiveVoice)}
+            accessibilityRole="button"
+            accessibilityLabel="Preview voice"
+          >
+            <View style={styles.rowContent}>
+              <Text style={styles.rowTitle}>Preview Voice</Text>
+              <Text style={styles.rowSubtitle}>
+                {previewingVoiceId ? 'Playing…' : 'Hear how IRIS will sound'}
+              </Text>
+            </View>
+            <SymbolView
+              name={previewingVoiceId ? 'waveform' : 'play.circle.fill'}
+              tintColor={colors.accent}
+              size={20}
+              resizeMode="scaleAspectFit"
+            />
+          </Pressable>
         </View>
 
-        {/* VOICE PITCH & TONE */}
-        <View style={[styles.sectionCard, { borderTopColor: colors.engineering }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconBox, { backgroundColor: colors.engineering }]}>
-              <Sparkles size={16} color="#FFFFFF" />
+        {/* SPEECH PACING & PITCH */}
+        <Text style={styles.sectionHeader}>SPEECH</Text>
+        <View style={styles.card}>
+          <View style={styles.sliderBlock}>
+            <View style={styles.labelRow}>
+              <Text style={styles.rowTitle}>Speech Speed</Text>
+              <Text style={styles.badgeText}>{`${settings.speechRate.toFixed(2)}×`}</Text>
             </View>
-            <Text style={styles.sectionTitle}>VOICE TONE & PITCH</Text>
+            <Slider
+              style={styles.slider}
+              minimumValue={0.8}
+              maximumValue={1.5}
+              step={0.05}
+              value={settings.speechRate}
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.borderDark}
+              thumbTintColor={colors.accent}
+              onValueChange={(val: number) => {
+                const rounded = Number(val.toFixed(2));
+                if (rounded !== settings.speechRate) {
+                  hapticService.selection();
+                  updateSettings({ speechRate: rounded });
+                }
+              }}
+            />
           </View>
-          <Text style={styles.sectionDescription}>
-            Modulate the vocal resonance and acoustic pitch
-          </Text>
 
-          <View style={styles.rateGrid}>
-            {SPEECH_PITCHES.map((pitch) => {
-              const isSelected =
-                Math.abs((settings.speechPitch || 1.0) - pitch.value) < 0.05;
-              return (
-                <TouchableOpacity
-                  key={pitch.value}
-                  accessible={true}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pitch ${pitch.name} (${pitch.label}), ${isSelected ? 'selected' : 'not selected'}`}
-                  onPress={() => handlePitchChange(pitch.value, pitch.name)}
+          <View style={styles.separator} />
+
+          <View style={styles.sliderBlock}>
+            <View style={styles.labelRow}>
+              <Text style={styles.rowTitle}>Speech Pitch</Text>
+              <Text style={styles.badgeText}>{`${settings.speechPitch.toFixed(2)} · ${pitchLabel}`}</Text>
+            </View>
+            <Slider
+              style={styles.slider}
+              minimumValue={0.85}
+              maximumValue={1.3}
+              step={0.05}
+              value={settings.speechPitch}
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.borderDark}
+              thumbTintColor={colors.accent}
+              onValueChange={(val: number) => {
+                const rounded = Number(val.toFixed(2));
+                if (rounded !== settings.speechPitch) {
+                  hapticService.selection();
+                  updateSettings({ speechPitch: rounded });
+                }
+              }}
+            />
+          </View>
+
+          <View style={styles.separator} />
+
+          <View style={styles.segmentedBlock}>
+            <Text style={styles.rowTitle}>Description Style</Text>
+            <View style={styles.segmentedContainer}>
+              <Pressable
+                style={[
+                  styles.segmentButton,
+                  settings.verbosity === 'concise' && styles.segmentButtonActive,
+                ]}
+                onPress={() => {
+                  hapticService.selection();
+                  updateSettings({ verbosity: 'concise' });
+                  speechService.announce('Concise mode active. Quick summaries.');
+                }}
+              >
+                <Text
                   style={[
-                    styles.pitchButton,
-                    isSelected
-                      ? styles.pitchButtonActive
-                      : styles.pitchButtonInactive,
+                    styles.segmentText,
+                    settings.verbosity === 'concise' && styles.segmentTextActive,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.rateButtonText,
-                      isSelected
-                        ? styles.rateButtonTextActive
-                        : styles.rateButtonTextInactive,
-                    ]}
-                  >
-                    {pitch.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.rateButtonSubtext,
-                      isSelected
-                        ? styles.pitchSubtextActive
-                        : styles.rateButtonSubtextInactive,
-                    ]}
-                  >
-                    {pitch.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+                  Concise
+                </Text>
+              </Pressable>
 
-        {/* Speech Speed Setting */}
-        <View style={[styles.sectionCard, { borderTopColor: colors.droneTech }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconBox, { backgroundColor: colors.droneTech }]}>
-              <Volume2 size={16} color="#FFFFFF" />
-            </View>
-            <Text style={styles.sectionTitle}>SPEECH SPEED</Text>
-          </View>
-          <Text style={styles.sectionDescription}>
-            Choose how fast IRIS articulates scene descriptions aloud
-          </Text>
-
-          <View style={styles.rateGrid}>
-            {SPEECH_RATES.map((rate) => {
-              const isSelected = settings.speechRate === rate.value;
-              return (
-                <TouchableOpacity
-                  key={rate.value}
-                  accessible={true}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Speech speed ${rate.label} (${rate.description}), ${isSelected ? 'selected' : 'not selected'}`}
-                  onPress={() => handleRateChange(rate.value)}
+              <Pressable
+                style={[
+                  styles.segmentButton,
+                  settings.verbosity === 'detailed' && styles.segmentButtonActive,
+                ]}
+                onPress={() => {
+                  hapticService.selection();
+                  updateSettings({ verbosity: 'detailed' });
+                  speechService.announce('Detailed mode active. Full spatial descriptions.');
+                }}
+              >
+                <Text
                   style={[
-                    styles.rateButton,
-                    isSelected ? styles.rateButtonActive : styles.rateButtonInactive,
+                    styles.segmentText,
+                    settings.verbosity === 'detailed' && styles.segmentTextActive,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.rateButtonText,
-                      isSelected ? styles.rateButtonTextActive : styles.rateButtonTextInactive,
-                    ]}
-                  >
-                    {rate.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.rateButtonSubtext,
-                      isSelected ? styles.rateButtonSubtextActive : styles.rateButtonSubtextInactive,
-                    ]}
-                  >
-                    {rate.description}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  Detailed
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
-        {/* Verbosity Mode */}
-        <View style={[styles.sectionCard, { borderTopColor: colors.foundations }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconBox, { backgroundColor: colors.foundations }]}>
-              <Sliders size={16} color="#FFFFFF" />
-            </View>
-            <Text style={styles.sectionTitle}>DESCRIPTION STYLE</Text>
-          </View>
-          <Text style={styles.sectionDescription}>
-            Select between punchy direct cues or full spatial details
-          </Text>
-
-          <View style={styles.verbosityRow}>
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel={`Concise mode, ${settings.verbosity === 'concise' ? 'selected' : 'not selected'}`}
-              accessibilityHint="Gives punchy 1-2 sentence direct audio descriptions"
-              onPress={() => handleVerbosityChange('concise')}
-              style={[
-                styles.verbosityButton,
-                settings.verbosity === 'concise'
-                  ? styles.verbosityButtonActive
-                  : styles.verbosityButtonInactive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.verbosityTitle,
-                  settings.verbosity === 'concise' && styles.verbosityTitleActive,
-                ]}
-              >
-                CONCISE
-              </Text>
-              <Text style={styles.verbosityDesc}>
-                Quick direct summaries optimized for rapid walking
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel={`Detailed mode, ${settings.verbosity === 'detailed' ? 'selected' : 'not selected'}`}
-              accessibilityHint="Gives comprehensive spatial directions and object layout"
-              onPress={() => handleVerbosityChange('detailed')}
-              style={[
-                styles.verbosityButton,
-                settings.verbosity === 'detailed'
-                  ? styles.verbosityButtonActive
-                  : styles.verbosityButtonInactive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.verbosityTitle,
-                  settings.verbosity === 'detailed' && styles.verbosityTitleActive,
-                ]}
-              >
-                DETAILED
-              </Text>
-              <Text style={styles.verbosityDesc}>
-                Comprehensive breakdown with object distances
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Safety & Hazard Alerts */}
-        <View style={[styles.sectionCard, { borderTopColor: colors.hazardHigh }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconBox, { backgroundColor: colors.hazardHigh }]}>
-              <ShieldAlert size={16} color="#FFFFFF" />
-            </View>
-            <Text style={styles.sectionTitle}>SAFETY & HAZARDS</Text>
-          </View>
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleTextCol}>
-              <Text style={styles.toggleLabel}>Hazard Vibration Alerts</Text>
-              <Text style={styles.toggleSubtext}>
-                Haptic vibration pattern when stairs or obstacles are ahead
-              </Text>
+        {/* SAFETY ALERTS */}
+        <Text style={styles.sectionHeader}>SAFETY & ALERTS</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowContent}>
+              <Text style={styles.rowTitle}>Hazard Vibration Alerts</Text>
+              <Text style={styles.rowSubtitle}>Haptic pulses when obstacles are detected</Text>
             </View>
             <Switch
               value={settings.hazardVibration}
-              onValueChange={handleToggleHazardVibration}
-              trackColor={{ false: '#2C3742', true: colors.primary }}
-              thumbColor="#FFFFFF"
+              onValueChange={(val) => {
+                hapticService.tap();
+                updateSettings({ hazardVibration: val });
+              }}
+              trackColor={{ false: colors.systemFill, true: colors.accent }}
             />
           </View>
 
-          <View style={[styles.toggleRow, { marginTop: 16 }]}>
-            <View style={styles.toggleTextCol}>
-              <Text style={styles.toggleLabel}>Auditory Warning Signal</Text>
-              <Text style={styles.toggleSubtext}>
-                Immediate spoken voice alert for critical hazards
-              </Text>
+          <View style={styles.separator} />
+
+          <View style={styles.row}>
+            <View style={styles.rowContent}>
+              <Text style={styles.rowTitle}>Spoken Hazard Warnings</Text>
+              <Text style={styles.rowSubtitle}>Audio interrupt for critical warnings</Text>
             </View>
             <Switch
               value={settings.hazardAlertSound}
-              onValueChange={handleToggleHazardSound}
-              trackColor={{ false: '#2C3742', true: colors.primary }}
-              thumbColor="#FFFFFF"
+              onValueChange={(val) => {
+                hapticService.tap();
+                updateSettings({ hazardAlertSound: val });
+              }}
+              trackColor={{ false: colors.systemFill, true: colors.accent }}
             />
           </View>
         </View>
 
-        {/* Server & Engine Connection */}
-        <View style={[styles.sectionCard, { borderTopColor: '#475569' }]}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.iconBox, { backgroundColor: '#475569' }]}>
-              <Server size={16} color="#FFFFFF" />
-            </View>
-            <Text style={styles.sectionTitle}>BACKEND SERVER ENGINE</Text>
+        {/* SERVER CONFIGURATION */}
+        <Text style={styles.sectionHeader}>BACKEND SERVER</Text>
+        <View style={styles.card}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Server Host URL</Text>
+            <TextInput
+              style={styles.textInput}
+              value={serverHostText}
+              onChangeText={setServerHostText}
+              placeholder="http://192.168.1.100:5000"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
           </View>
-          <Text style={styles.sectionDescription}>
-            Configure your Express + Gemini Vision backend endpoint
-          </Text>
 
-          <TextInput
-            style={styles.serverInput}
-            value={serverHost}
-            onChangeText={setServerHost}
-            placeholder="http://localhost:5000"
-            placeholderTextColor={colors.textDarkMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <View style={styles.serverActionRow}>
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel="Test backend server connection"
+          <View style={styles.buttonRow}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.actionBtnOutline,
+                pressed && { opacity: 0.7 },
+              ]}
               onPress={handleTestConnection}
-              style={styles.testButton}
               disabled={isTesting}
             >
-              <RefreshCw size={13} color="#0A0E11" />
-              <Text style={styles.testButtonText}>
-                {isTesting ? 'TESTING...' : 'TEST LINK'}
-              </Text>
-            </TouchableOpacity>
+              {isTesting ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <Text style={styles.actionBtnOutlineText}>Test Connection</Text>
+              )}
+            </Pressable>
 
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel="Save server address"
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.actionBtnFilled,
+                pressed && { opacity: 0.8 },
+              ]}
               onPress={handleSaveServerHost}
-              style={styles.saveServerButton}
             >
-              <Check size={13} color="#0A0E11" />
-              <Text style={styles.saveServerButtonText}>SAVE</Text>
-            </TouchableOpacity>
+              <Text style={styles.actionBtnFilledText}>Save</Text>
+            </Pressable>
           </View>
 
-          {testSuccess === true && (
-            <View style={styles.statusBoxSuccess}>
-              <Text style={styles.testSuccessText}>
-                ✓ SERVER CONNECTED & ACTIVE
+          {testSuccess === true ? (
+            <View style={styles.statusRow}>
+              <SymbolView name="checkmark.circle.fill" tintColor={colors.safe} size={16} />
+              <Text style={[styles.statusText, { color: colors.safe }]}>Server connected successfully</Text>
+            </View>
+          ) : null}
+
+          {testSuccess === false ? (
+            <View style={styles.statusRow}>
+              <SymbolView name="exclamationmark.triangle.fill" tintColor={colors.systemRed} size={16} />
+              <Text style={[styles.statusText, { color: colors.systemRed }]}>
+                Server unreachable — local offline assist active
               </Text>
             </View>
-          )}
-          {testSuccess === false && (
-            <View style={styles.statusBoxError}>
-              <Text style={styles.testErrorText}>
-                ✕ SERVER UNREACHABLE — OFFLINE ASSIST ACTIVE
-              </Text>
-            </View>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
-      {/* ========================================================================= */}
-      {/* BOTTOM SHEET MODAL FOR VOICE SELECTION */}
-      {/* ========================================================================= */}
+      {/* VOICE SELECTION MODAL */}
       <Modal
         visible={isVoiceModalVisible}
-        transparent={true}
         animationType="slide"
-        onRequestClose={handleCloseVoiceModal}
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsVoiceModalVisible(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={handleCloseVoiceModal}>
-          <Pressable style={styles.bottomSheetContainer} onPress={(e) => e.stopPropagation()}>
-            {/* Sheet Handle Bar */}
-            <View style={styles.sheetHandle} />
-
-            {/* Sheet Header */}
-            <View style={styles.sheetHeader}>
-              <View style={styles.sheetHeaderLeft}>
-                <View style={[styles.iconBox, { backgroundColor: colors.primary }]}>
-                  <Headphones size={16} color="#0A0E11" />
-                </View>
-                <View>
-                  <Text style={styles.sheetTitle}>SELECT VOICE PERSONA</Text>
-                  <Text style={styles.sheetSubtitle}>
-                    {availableVoices.length} voices available on device
-                  </Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Close voice selection sheet"
-                onPress={handleCloseVoiceModal}
-                style={styles.sheetCloseButton}
-              >
-                <X size={18} color="#0A0E11" />
-              </TouchableOpacity>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Select Voice</Text>
+              <Text style={styles.modalSubtitle}>
+                {`${availableVoices.length} voices installed on device`}
+              </Text>
             </View>
-
-            {/* Filter Chips */}
-            <View style={styles.modalFilterChipsRow}>
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Filter English Voices"
-                onPress={() => {
-                  hapticService.tap();
-                  setSelectedVoiceFilter('EN');
-                  setVoiceSearchQuery('');
-                }}
-                style={[
-                  styles.filterChip,
-                  selectedVoiceFilter === 'EN' && !voiceSearchQuery
-                    ? styles.filterChipActive
-                    : styles.filterChipInactive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedVoiceFilter === 'EN' && !voiceSearchQuery
-                      ? styles.filterChipTextActive
-                      : styles.filterChipTextInactive,
-                  ]}
-                >
-                  ENGLISH
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Filter Enhanced HD Voices"
-                onPress={() => {
-                  hapticService.tap();
-                  setSelectedVoiceFilter('ENHANCED');
-                  setVoiceSearchQuery('');
-                }}
-                style={[
-                  styles.filterChip,
-                  selectedVoiceFilter === 'ENHANCED' && !voiceSearchQuery
-                    ? styles.filterChipActive
-                    : styles.filterChipInactive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedVoiceFilter === 'ENHANCED' && !voiceSearchQuery
-                      ? styles.filterChipTextActive
-                      : styles.filterChipTextInactive,
-                  ]}
-                >
-                  ⚡ HD NEURAL
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Show All Voices"
-                onPress={() => {
-                  hapticService.tap();
-                  setSelectedVoiceFilter('ALL');
-                  setVoiceSearchQuery('');
-                }}
-                style={[
-                  styles.filterChip,
-                  selectedVoiceFilter === 'ALL' && !voiceSearchQuery
-                    ? styles.filterChipActive
-                    : styles.filterChipInactive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedVoiceFilter === 'ALL' && !voiceSearchQuery
-                      ? styles.filterChipTextActive
-                      : styles.filterChipTextInactive,
-                  ]}
-                >
-                  ALL ({availableVoices.length})
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Offline Studio Voice Guide Banner */}
-            <TouchableOpacity
-              onPress={() => setShowVoiceGuide(!showVoiceGuide)}
-              style={styles.voiceGuideBanner}
+            <Pressable
+              onPress={() => setIsVoiceModalVisible(false)}
+              style={styles.modalCloseBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Done"
             >
-              <View style={styles.voiceGuideBannerHeader}>
-                <Sparkles size={14} color="#0A0E11" />
-                <Text style={styles.voiceGuideBannerTitle}>
-                  {showVoiceGuide ? 'HIDE OFFLINE HD SETUP GUIDE' : '💡 HOW TO UNLOCK FREE STUDIO NEURAL VOICES'}
-                </Text>
-              </View>
-              {showVoiceGuide && (
-                <View style={styles.voiceGuideBannerBody}>
-                  <Text style={styles.voiceGuideText}>
-                    <Text style={{ fontWeight: '900' }}>iOS / iPhone:</Text> Settings ➔ Accessibility ➔ Spoken Content ➔ Voices ➔ English ➔ Download <Text style={{ fontWeight: '900' }}>Ava (Premium)</Text>, <Text style={{ fontWeight: '900' }}>Zoe</Text>, or <Text style={{ fontWeight: '900' }}>Siri</Text> for 100% free studio audio.
-                  </Text>
-                  <Text style={[styles.voiceGuideText, { marginTop: 6 }]}>
-                    <Text style={{ fontWeight: '900' }}>Android:</Text> Settings ➔ Accessibility ➔ Text-to-speech output ➔ Install voice data (Google TTS High Quality).
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+              <Text style={styles.modalCloseText}>Done</Text>
+            </Pressable>
+          </View>
 
-            {/* Voice Search Input */}
-            <View style={styles.modalSearchContainer}>
-              <Search size={14} color="#737373" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search by voice name or country..."
-                placeholderTextColor="#9CA3AF"
-                value={voiceSearchQuery}
-                onChangeText={setVoiceSearchQuery}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {voiceSearchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setVoiceSearchQuery('')}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.clearSearchText}>CLEAR</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Scrollable Voice List inside Sheet */}
-            <ScrollView
-              style={styles.sheetScrollList}
-              contentContainerStyle={styles.sheetScrollListContent}
-              showsVerticalScrollIndicator={true}
-            >
-              {isLoadingVoices ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator color={colors.primary} size="small" />
-                  <Text style={styles.loadingText}>Scanning device voices...</Text>
-                </View>
-              ) : (
-                <>
-                  {/* Default Native Option */}
-                  {(!voiceSearchQuery ||
-                    'system native default auto-enhanced'.includes(voiceSearchQuery.toLowerCase())) && (
-                    <TouchableOpacity
-                      accessible={true}
-                      accessibilityRole="button"
-                      accessibilityLabel={`System Auto-Enhanced Voice, ${!settings.voiceIdentifier ? 'selected' : 'not selected'}`}
-                      onPress={() =>
-                        handleSelectVoice({
-                          identifier: 'default',
-                          name: 'Iris Auto-Enhanced Default',
-                          quality: 'Enhanced HD',
-                          language: 'en-US',
-                          isEnhanced: true,
-                          isNeural: true,
-                          badge: 'HD NEURAL',
-                        })
-                      }
-                      style={[
-                        styles.voiceCard,
-                        !settings.voiceIdentifier
-                          ? styles.voiceCardActive
-                          : styles.voiceCardInactive,
-                      ]}
-                    >
-                      <View style={styles.voiceCardLeft}>
-                        <View
-                          style={[
-                            styles.voiceRadio,
-                            !settings.voiceIdentifier && styles.voiceRadioActive,
-                          ]}
-                        >
-                          {!settings.voiceIdentifier && (
-                            <View style={styles.voiceRadioInner} />
-                          )}
-                        </View>
-                        <View style={styles.voiceInfoCol}>
-                          <View style={styles.voiceNameRow}>
-                            <Text style={styles.voiceName}>Auto-Enhanced Default</Text>
-                            <View style={styles.enhancedBadge}>
-                              <Text style={styles.enhancedBadgeText}>⚡ BEST HD</Text>
-                            </View>
-                          </View>
-                          <Text style={styles.voiceSubtext}>
-                            Auto-selects highest quality on-device neural voice
-                          </Text>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        accessible={true}
-                        accessibilityRole="button"
-                        accessibilityLabel="Preview system native voice"
-                        onPress={() =>
-                          handlePreviewVoice({
-                            identifier: 'default',
-                            name: 'Auto-Enhanced Default',
-                            quality: 'Enhanced HD',
-                            language: 'en-US',
-                            isEnhanced: true,
-                            isNeural: true,
-                          })
-                        }
-                        style={styles.previewButton}
-                      >
-                        {previewingVoiceId === 'default' ? (
-                          <ActivityIndicator size={12} color="#0A0E11" />
-                        ) : (
-                          <Play size={12} color="#0A0E11" />
-                        )}
-                        <Text style={styles.previewButtonText}>PREVIEW</Text>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Dynamic Available Voices */}
-                  {filteredVoices.map((voice) => {
-                    const isSelected = settings.voiceIdentifier === voice.identifier;
-                    const isPreviewing = previewingVoiceId === voice.identifier;
-
-                    return (
-                      <TouchableOpacity
-                        key={voice.identifier}
-                        accessible={true}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${voice.name} voice, ${voice.language}, ${isSelected ? 'selected' : 'not selected'}`}
-                        onPress={() => handleSelectVoice(voice)}
-                        style={[
-                          styles.voiceCard,
-                          isSelected
-                            ? styles.voiceCardActive
-                            : styles.voiceCardInactive,
-                        ]}
-                      >
-                        <View style={styles.voiceCardLeft}>
-                          <View
-                            style={[
-                              styles.voiceRadio,
-                              isSelected && styles.voiceRadioActive,
-                            ]}
-                          >
-                            {isSelected && <View style={styles.voiceRadioInner} />}
-                          </View>
-                          <View style={styles.voiceInfoCol}>
-                            <View style={styles.voiceNameRow}>
-                              <Text
-                                style={[
-                                  styles.voiceName,
-                                  isSelected && styles.voiceNameActive,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {voice.name}
-                              </Text>
-                              <View style={styles.languageBadge}>
-                                <Text style={styles.languageBadgeText}>
-                                  {voice.language.toUpperCase()}
-                                </Text>
-                              </View>
-                              {voice.badge === 'HD NEURAL' && (
-                                <View style={styles.enhancedBadge}>
-                                  <Text style={styles.enhancedBadgeText}>⚡ HD NEURAL</Text>
-                                </View>
-                              )}
-                              {voice.badge === 'STUDIO' && (
-                                <View style={styles.studioBadge}>
-                                  <Text style={styles.studioBadgeText}>STUDIO</Text>
-                                </View>
-                              )}
-                              {voice.badge === 'NATURAL' && (
-                                <View style={styles.naturalBadge}>
-                                  <Text style={styles.naturalBadgeText}>NATURAL</Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={styles.voiceIdText} numberOfLines={1}>
-                              {voice.identifier}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <TouchableOpacity
-                          accessible={true}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Preview ${voice.name} voice`}
-                          onPress={() => handlePreviewVoice(voice)}
-                          style={styles.previewButton}
-                        >
-                          {isPreviewing ? (
-                            <ActivityIndicator size={12} color="#0A0E11" />
-                          ) : (
-                            <Play size={12} color="#0A0E11" />
-                          )}
-                          <Text style={styles.previewButtonText}>PREVIEW</Text>
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    );
-                  })}
-
-                  {filteredVoices.length === 0 && (
-                    <View style={styles.emptyVoicesBox}>
-                      <Text style={styles.emptyVoicesText}>
-                        No voices found matching "{voiceSearchQuery}".
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-            </ScrollView>
-
-            {/* Bottom Sheet Apply Button */}
-            <View style={styles.sheetFooter}>
-              <TouchableOpacity
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="Apply voice selection and close"
-                onPress={handleCloseVoiceModal}
-                style={styles.sheetApplyButton}
+          {/* FILTER TABS */}
+          <View style={styles.modalFilterContainer}>
+            <View style={styles.segmentedContainer}>
+              <Pressable
+                style={[styles.segmentButton, voiceFilter === 'EN' && styles.segmentButtonActive]}
+                onPress={() => {
+                  hapticService.tap();
+                  setVoiceFilter('EN');
+                }}
               >
-                <Check size={16} color="#0A0E11" />
-                <Text style={styles.sheetApplyButtonText}>APPLY & CLOSE</Text>
-              </TouchableOpacity>
+                <Text style={[styles.segmentText, voiceFilter === 'EN' && styles.segmentTextActive]}>
+                  English
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.segmentButton, voiceFilter === 'ENHANCED' && styles.segmentButtonActive]}
+                onPress={() => {
+                  hapticService.tap();
+                  setVoiceFilter('ENHANCED');
+                }}
+              >
+                <Text style={[styles.segmentText, voiceFilter === 'ENHANCED' && styles.segmentTextActive]}>
+                  HD Neural
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.segmentButton, voiceFilter === 'ALL' && styles.segmentButtonActive]}
+                onPress={() => {
+                  hapticService.tap();
+                  setVoiceFilter('ALL');
+                }}
+              >
+                <Text style={[styles.segmentText, voiceFilter === 'ALL' && styles.segmentTextActive]}>
+                  All
+                </Text>
+              </Pressable>
             </View>
+          </View>
+
+          {/* SEARCH INPUT */}
+          <View style={styles.searchBox}>
+            <SymbolView name="magnifyingglass" tintColor={colors.textMuted} size={16} />
+            <TextInput
+              style={styles.searchInput}
+              value={voiceSearchQuery}
+              onChangeText={setVoiceSearchQuery}
+              placeholder="Search voices by name or language"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+
+          {/* INSTRUCTIONS ACCORDION */}
+          <Pressable
+            style={styles.guideToggle}
+            onPress={() => setShowVoiceGuide(!showVoiceGuide)}
+          >
+            <Text style={styles.guideToggleText}>
+              {showVoiceGuide ? 'Hide HD Voice Guide' : 'How to download HD & Studio voices'}
+            </Text>
+            <SymbolView
+              name={showVoiceGuide ? 'chevron.up' : 'chevron.down'}
+              tintColor={colors.accent}
+              size={12}
+            />
           </Pressable>
-        </Pressable>
+
+          {showVoiceGuide ? (
+            <View style={styles.guideContent}>
+              <Text style={styles.guideText}>
+                • iOS: Settings → Accessibility → Spoken Content → Voices → English. Download Ava (Premium), Zoe, or Siri Voice 4 for studio quality.
+              </Text>
+              <Text style={[styles.guideText, { marginTop: 6 }]}>
+                • Android: Settings → Accessibility → Text-to-speech output → Gear icon → Install voice data.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* VOICE LIST */}
+          <FlatList
+            data={filteredVoices}
+            keyExtractor={(item) => item.identifier}
+            ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+            contentContainerStyle={styles.listContainer}
+            renderItem={({ item }) => {
+              const isSelected =
+                (!settings.voiceIdentifier && item.identifier === 'default') ||
+                settings.voiceIdentifier === item.identifier;
+
+              return (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.voiceItem,
+                    isSelected && styles.voiceItemSelected,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPress={() => handleSelectVoice(item)}
+                >
+                  <View style={styles.voiceInfoCol}>
+                    <View style={styles.voiceNameRow}>
+                      <Text style={[styles.voiceName, isSelected && { color: colors.accent }]}>
+                        {item.name}
+                      </Text>
+                      {item.badge ? (
+                        <View style={styles.badgePill}>
+                          <Text style={styles.badgePillText}>{item.badge}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.voiceDetails}>
+                      {`${item.language} · ${item.quality}`}
+                    </Text>
+                  </View>
+
+                  <View style={styles.voiceActions}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.playBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handlePreviewVoice(item);
+                      }}
+                      hitSlop={8}
+                    >
+                      {previewingVoiceId === item.identifier ? (
+                        <ActivityIndicator size="small" color={colors.accent} />
+                      ) : (
+                        <SymbolView name="play.fill" tintColor={colors.accent} size={14} />
+                      )}
+                    </Pressable>
+
+                    {isSelected ? (
+                      <SymbolView
+                        name="checkmark"
+                        tintColor={colors.accent}
+                        size={18}
+                        style={{ marginLeft: 12 }}
+                      />
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.groupedBackground,
+  },
+  scroll: {
+    flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    gap: 16,
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF', // High-contrast clean white surface
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    borderTopWidth: 5,
-    borderRadius: 4,
-    padding: 18,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 3.5, height: 3.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 5,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 48,
   },
   sectionHeader: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.tertiaryLabel,
+    marginLeft: 12,
+    marginTop: 24,
+    marginBottom: 8,
+    letterSpacing: 0.4,
+  },
+  card: {
+    backgroundColor: colors.secondaryGroupedBackground,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderDark,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  rowPressed: {
+    backgroundColor: colors.systemFill,
+  },
+  rowContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  rowTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.label,
+  },
+  rowSubtitle: {
+    fontSize: 13,
+    color: colors.secondaryLabel,
+    marginTop: 3,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
+    marginLeft: 16,
+  },
+  sliderBlock: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  badgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  segmentedBlock: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  segmentedContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.systemFill,
+    borderRadius: 9,
+    padding: 3,
+    marginTop: 10,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 7,
+  },
+  segmentButtonActive: {
+    backgroundColor: colors.secondaryGroupedBackground,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.secondaryLabel,
+  },
+  segmentTextActive: {
+    fontWeight: '600',
+    color: colors.label,
+  },
+  inputContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.secondaryLabel,
     marginBottom: 6,
   },
-  iconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.8,
-  },
-  sectionDescription: {
-    fontSize: 13,
-    color: '#525252',
-    marginBottom: 14,
-    lineHeight: 18,
-  },
-
-  // Active Voice Hero Card (Settings Page)
-  activeVoiceHeroCard: {
-    backgroundColor: '#FFF7F5',
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
-    borderRadius: 4,
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  activeVoiceHeroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  activeVoiceIconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 4,
-    backgroundColor: '#FFF0ED',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activeVoiceHeroInfo: {
-    flex: 1,
-  },
-  activeVoiceHeroTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  activeVoiceHeroName: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0A0E11',
-  },
-  activeVoiceHeroSubtitle: {
-    fontSize: 11,
-    color: '#737373',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  activeVoiceHeroActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#FEE2E2',
-    paddingTop: 10,
-  },
-  heroPreviewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#0A0E11',
-    paddingVertical: 8,
+  textInput: {
+    height: 44,
+    backgroundColor: colors.systemFill,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    borderRadius: 3,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 1.5, height: 1.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
-  },
-  heroPreviewButtonText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.5,
-  },
-  switchVoiceButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    borderWidth: 1.5,
-    borderColor: '#0A0E11',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 3,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 1.5, height: 1.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
-  },
-  switchVoiceButtonText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.8,
-  },
-
-  masterTestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primaryLight,
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    paddingVertical: 11,
-    borderRadius: 3,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  masterTestButtonText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.8,
-  },
-
-  // Pitch Grid
-  rateGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  rateButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 3,
-    borderWidth: 2,
-  },
-  rateButtonActive: {
-    backgroundColor: colors.droneTech,
-    borderColor: '#0A0E11',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  rateButtonInactive: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E5E5',
-  },
-  pitchButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 3,
-    borderWidth: 2,
-  },
-  pitchButtonActive: {
-    backgroundColor: colors.engineering,
-    borderColor: '#0A0E11',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  pitchButtonInactive: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E5E5',
-  },
-  rateButtonText: {
     fontSize: 15,
-    fontWeight: '900',
+    color: colors.label,
   },
-  rateButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  rateButtonTextInactive: {
-    color: '#171717',
-  },
-  rateButtonSubtext: {
-    fontSize: 9,
-    fontWeight: '800',
-    marginTop: 2,
-    letterSpacing: 0.5,
-  },
-  rateButtonSubtextActive: {
-    color: '#FFFFFF',
-  },
-  rateButtonSubtextInactive: {
-    color: '#737373',
-  },
-  pitchSubtextActive: {
-    color: '#FFFFFF',
-  },
-
-  // Description Mode
-  verbosityRow: {
+  buttonRow: {
     flexDirection: 'row',
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
-  verbosityButton: {
+  actionBtn: {
     flex: 1,
-    padding: 14,
-    borderRadius: 3,
-    borderWidth: 2,
+    height: 42,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  verbosityButtonActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#0A0E11',
-    borderTopWidth: 4,
-    borderTopColor: colors.foundations,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2.5, height: 2.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
+  actionBtnOutline: {
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    backgroundColor: 'transparent',
   },
-  verbosityButtonInactive: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E5E5',
-  },
-  verbosityTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#171717',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  verbosityTitleActive: {
-    color: '#0A0E11',
-  },
-  verbosityDesc: {
-    fontSize: 11,
-    lineHeight: 15,
-    color: '#525252',
+  actionBtnOutlineText: {
+    color: colors.accent,
+    fontSize: 15,
     fontWeight: '600',
   },
-
-  // Toggle rows
-  toggleRow: {
+  actionBtnFilled: {
+    backgroundColor: colors.accent,
+  },
+  actionBtnFilledText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.groupedBackground,
+  },
+  modalHeader: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.label,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.secondaryLabel,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  modalCloseText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalFilterContainer: {
+    paddingHorizontal: 16,
     paddingTop: 12,
   },
-  toggleTextCol: {
-    flex: 1,
-    paddingRight: 16,
-  },
-  toggleLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#171717',
-  },
-  toggleSubtext: {
-    fontSize: 12,
-    color: '#737373',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-
-  // Server Box
-  serverInput: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 3,
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.secondaryGroupedBackground,
+    marginHorizontal: 16,
+    marginTop: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#171717',
-    fontSize: 14,
-    fontWeight: '600',
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    marginBottom: 12,
-  },
-  serverActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 3,
-    backgroundColor: '#E5E5E5',
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
-  },
-  testButtonText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    color: '#0A0E11',
-  },
-  saveServerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  saveServerButtonText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    color: '#0A0E11',
-  },
-  statusBoxSuccess: {
-    marginTop: 12,
-    padding: 8,
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1.5,
-    borderColor: colors.safe,
-    borderRadius: 3,
-  },
-  testSuccessText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#15803D',
-    letterSpacing: 0.5,
-  },
-  statusBoxError: {
-    marginTop: 12,
-    padding: 8,
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1.5,
-    borderColor: colors.hazardHigh,
-    borderRadius: 3,
-  },
-  testErrorText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#B91C1C',
-    letterSpacing: 0.5,
-  },
-
-  // =========================================================================
-  // BOTTOM SHEET MODAL STYLES
-  // =========================================================================
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(10, 14, 17, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  bottomSheetContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    borderTopWidth: 6,
-    borderTopColor: colors.primary,
-    maxHeight: '84%',
-    paddingBottom: 24,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 10,
-  },
-  sheetHandle: {
-    width: 44,
-    height: 5,
-    backgroundColor: '#CBD5E1',
-    borderRadius: 3,
-    marginTop: 10,
-    alignSelf: 'center',
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 10,
-  },
-  sheetHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sheetTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.8,
-  },
-  sheetSubtitle: {
-    fontSize: 11,
-    color: '#737373',
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  sheetCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 3,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1.5,
-    borderColor: '#0A0E11',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalFilterChipsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 18,
-    marginBottom: 10,
-  },
-  filterChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 3,
-    borderWidth: 1.5,
-  },
-  filterChipActive: {
-    backgroundColor: '#0A0E11',
-    borderColor: '#0A0E11',
-  },
-  filterChipInactive: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E5E5',
-  },
-  filterChipText: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
-  },
-  filterChipTextInactive: {
-    color: '#525252',
-  },
-  modalSearchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
-    borderRadius: 3,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginHorizontal: 18,
-    marginBottom: 12,
-    gap: 8,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
   },
   searchInput: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#171717',
-    padding: 0,
+    marginLeft: 8,
+    fontSize: 15,
+    color: colors.label,
   },
-  clearSearchText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: colors.primaryDark,
-  },
-  sheetScrollList: {
-    maxHeight: 340,
-    paddingHorizontal: 18,
-  },
-  sheetScrollListContent: {
-    gap: 8,
-    paddingBottom: 10,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 24,
-  },
-  loadingText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#737373',
-  },
-  voiceCard: {
+  guideToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 3,
-    borderWidth: 2,
   },
-  voiceCardActive: {
-    backgroundColor: '#FFF7F5',
-    borderColor: colors.primary,
-    borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 1.5, height: 1.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
+  guideToggleText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.accent,
   },
-  voiceCardInactive: {
-    backgroundColor: '#FAFAFA',
-    borderColor: '#E5E5E5',
+  guideContent: {
+    marginHorizontal: 16,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: colors.secondaryGroupedBackground,
+    marginBottom: 8,
   },
-  voiceCardLeft: {
+  guideText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.secondaryLabel,
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
+  listSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
+  },
+  voiceItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    gap: 10,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: colors.secondaryGroupedBackground,
   },
-  voiceRadio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  voiceRadioActive: {
-    borderColor: colors.primary,
-  },
-  voiceRadioInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: colors.primary,
+  voiceItemSelected: {
+    backgroundColor: colors.systemFill,
   },
   voiceInfoCol: {
     flex: 1,
+    marginRight: 12,
   },
   voiceNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
+    gap: 8,
   },
   voiceName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#171717',
-  },
-  voiceNameActive: {
-    color: '#0A0E11',
-    fontWeight: '900',
-  },
-  badgeAuto: {
-    backgroundColor: '#E0E7FF',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  badgeAutoText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#3730A3',
-  },
-  languageBadge: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 2,
-  },
-  languageBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#4B5563',
-  },
-  enhancedBadge: {
-    backgroundColor: '#DCFCE7',
-    borderWidth: 1,
-    borderColor: colors.safe,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  enhancedBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#15803D',
-    letterSpacing: 0.3,
-  },
-  studioBadge: {
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: '#6366F1',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  studioBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#4F46E5',
-    letterSpacing: 0.3,
-  },
-  naturalBadge: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#D97706',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  naturalBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#B45309',
-    letterSpacing: 0.3,
-  },
-  voiceGuideBanner: {
-    backgroundColor: '#FEF9C3',
-    borderWidth: 1.5,
-    borderColor: '#0A0E11',
-    borderRadius: 3,
-    padding: 10,
-    marginHorizontal: 18,
-    marginBottom: 8,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 1.5, height: 1.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
-  },
-  voiceGuideBannerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  voiceGuideBannerTitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.4,
-  },
-  voiceGuideBannerBody: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#EAB308',
-  },
-  voiceGuideText: {
-    fontSize: 11,
-    color: '#451A03',
-    lineHeight: 16,
-  },
-  voiceSubtext: {
-    fontSize: 10,
-    color: '#737373',
-    marginTop: 2,
+    fontSize: 15,
     fontWeight: '600',
+    color: colors.label,
   },
-  voiceIdText: {
-    fontSize: 9,
-    color: '#9CA3AF',
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  previewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#0A0E11',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 3,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 1.5, height: 1.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 2,
-  },
-  previewButtonText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.5,
-  },
-  emptyVoicesBox: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  emptyVoicesText: {
+  voiceDetails: {
     fontSize: 12,
-    color: '#737373',
-    fontWeight: '600',
+    color: colors.secondaryLabel,
+    marginTop: 3,
   },
-  sheetFooter: {
-    paddingHorizontal: 18,
-    paddingTop: 12,
+  badgePill: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  sheetApplyButton: {
+  badgePillText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  voiceActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.systemFill,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    paddingVertical: 12,
-    borderRadius: 3,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  sheetApplyButtonText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#0A0E11',
-    letterSpacing: 0.8,
   },
 });
+

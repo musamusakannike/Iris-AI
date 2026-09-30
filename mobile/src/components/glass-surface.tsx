@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, StyleProp, Platform } from 'react-native';
+import { View, ViewStyle, StyleProp, Platform } from 'react-native';
 import { GlassView, GlassStyle, GlassEffectStyleConfig, GlassColorScheme } from 'expo-glass-effect';
-import { colors, brutalistShadow } from '../theme/colors';
+import { colors } from '../theme/colors';
 
 interface GlassSurfaceProps {
   children?: React.ReactNode;
@@ -10,9 +10,6 @@ interface GlassSurfaceProps {
   colorScheme?: GlassColorScheme;
   tintColor?: string;
   isInteractive?: boolean;
-  border?: boolean;
-  highlight?: boolean;
-  brutalist?: boolean;
 }
 
 export const GlassSurface: React.FC<GlassSurfaceProps> = ({
@@ -22,20 +19,17 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
   colorScheme = 'dark',
   tintColor,
   isInteractive,
-  border = true,
-  highlight = false,
-  brutalist = false,
 }) => {
-  const isIOS = Platform.OS === 'ios';
-
-  const containerStyle = [
-    styles.base,
-    border && (highlight ? styles.borderHighlight : styles.border),
-    brutalist && styles.brutalistShadow,
+  const containerStyle: StyleProp<ViewStyle> = [
+    {
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderCurve: 'continuous',
+    },
     style,
   ];
 
-  if (isIOS) {
+  if (Platform.OS === 'ios') {
     return (
       <GlassView
         style={containerStyle}
@@ -49,32 +43,18 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
     );
   }
 
-  // Fallback for Android and Web with polished translucent dark styling
   return (
-    <View style={[styles.fallbackSurface, containerStyle]}>
+    <View
+      style={[
+        {
+          backgroundColor: colors.glassBackgroundLight,
+          borderWidth: 1,
+          borderColor: colors.glassBorder,
+        },
+        containerStyle,
+      ]}
+    >
       {children}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  border: {
-    borderWidth: 1.5,
-    borderColor: colors.borderDark,
-  },
-  borderHighlight: {
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  brutalistShadow: {
-    ...brutalistShadow.md,
-  },
-  fallbackSurface: {
-    backgroundColor: colors.surface,
-  },
-});
-

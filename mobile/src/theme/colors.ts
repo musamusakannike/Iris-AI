@@ -1,87 +1,166 @@
+import { Platform } from 'react-native';
+import { Color } from 'expo-router';
+
+const accent = '#FF634E';
+
 export const colors = {
-  // A1 Academy Core Brand Palette
-  primary: '#FF634E', // A1 Primary Coral / Orange-Red
+  accent,
+  primary: accent,
   primaryHover: '#E8533F',
   primaryDark: '#D9381E',
   primaryLight: '#FFF0ED',
   primaryGlow: 'rgba(255, 99, 78, 0.35)',
 
-  // Obsidian Dark & Background Tokens
-  black: '#0A0E11', // A1 Rich Black
-  background: '#0A0E11',
-  backgroundSecondary: '#12171B',
-  surface: '#181F26', // Dark tech card surface
-  surfaceLight: '#232C35',
-  surfaceCard: '#FFFFFF', // Crisp light brutalist card
+  label: Platform.select({
+    ios: Color.ios.label,
+    android: Color.android.dynamic.onSurface,
+    default: '#000000',
+  })!,
+  secondaryLabel: Platform.select({
+    ios: Color.ios.secondaryLabel,
+    android: Color.android.dynamic.onSurfaceVariant,
+    default: '#3c3c43',
+  })!,
+  tertiaryLabel: Platform.select({
+    ios: Color.ios.tertiaryLabel,
+    android: Color.android.dynamic.onSurfaceVariant,
+    default: '#8e8e93',
+  })!,
+  systemBackground: Platform.select({
+    ios: Color.ios.systemBackground,
+    android: Color.android.dynamic.surface,
+    default: '#ffffff',
+  })!,
+  secondarySystemBackground: Platform.select({
+    ios: Color.ios.secondarySystemBackground,
+    android: Color.android.dynamic.surfaceContainer,
+    default: '#f2f2f7',
+  })!,
+  groupedBackground: Platform.select({
+    ios: Color.ios.systemGroupedBackground,
+    android: Color.android.dynamic.surface,
+    default: '#f2f2f7',
+  })!,
+  secondaryGroupedBackground: Platform.select({
+    ios: Color.ios.secondarySystemGroupedBackground,
+    android: Color.android.dynamic.surfaceContainer,
+    default: '#ffffff',
+  })!,
+  separator: Platform.select({
+    ios: Color.ios.separator,
+    android: Color.android.dynamic.outlineVariant,
+    default: '#c6c6c8',
+  })!,
+  systemFill: Platform.select({
+    ios: Color.ios.systemFill,
+    android: Color.android.dynamic.surfaceContainerHigh,
+    default: 'rgba(120,120,128,0.2)',
+  })!,
+  systemBlue: Platform.select({
+    ios: Color.ios.systemBlue,
+    android: Color.android.dynamic.primary,
+    default: '#007aff',
+  })!,
+  systemGreen: Platform.select({
+    ios: Color.ios.systemGreen,
+    android: Color.android.material.primary,
+    default: '#34c759',
+  })!,
+  systemRed: Platform.select({
+    ios: Color.ios.systemRed,
+    android: Color.android.material.error,
+    default: '#ff3b30',
+  })!,
+  systemOrange: Platform.select({
+    ios: Color.ios.systemOrange,
+    android: Color.android.material.tertiary,
+    default: '#ff9500',
+  })!,
+  systemPurple: Platform.select({
+    ios: Color.ios.systemPurple,
+    android: Color.android.material.secondary,
+    default: '#af52de',
+  })!,
 
-  // Borders & Dividers
-  borderBlack: '#0A0E11',
-  borderDark: '#2C3742',
+  black: '#000000',
+  background: Platform.select({
+    ios: Color.ios.systemBackground,
+    android: Color.android.dynamic.surface,
+    default: '#000000',
+  })!,
+  backgroundSecondary: Platform.select({
+    ios: Color.ios.secondarySystemBackground,
+    android: Color.android.dynamic.surfaceContainer,
+    default: '#1c1c1e',
+  })!,
+  surface: Platform.select({
+    ios: Color.ios.secondarySystemBackground,
+    android: Color.android.dynamic.surfaceContainer,
+    default: '#1c1c1e',
+  })!,
+  surfaceLight: Platform.select({
+    ios: Color.ios.tertiarySystemBackground,
+    android: Color.android.dynamic.surfaceContainerHigh,
+    default: '#2c2c2e',
+  })!,
+  surfaceCard: Platform.select({
+    ios: Color.ios.secondarySystemGroupedBackground,
+    android: Color.android.dynamic.surfaceContainer,
+    default: '#ffffff',
+  })!,
+
+  borderBlack: '#000000',
+  borderDark: Platform.select({
+    ios: Color.ios.separator,
+    android: Color.android.dynamic.outlineVariant,
+    default: '#3a3a3c',
+  })!,
   borderLight: '#E5E5E5',
   borderSubtle: '#F0F0F0',
-  borderHighlight: '#FF634E',
+  borderHighlight: accent,
 
-  // Translucent / Glass tokens
-  glassBackground: 'rgba(10, 14, 17, 0.85)',
-  glassBackgroundLight: 'rgba(24, 31, 38, 0.85)',
-  glassBackgroundActive: 'rgba(255, 99, 78, 0.18)',
-  glassBorder: 'rgba(255, 255, 255, 0.12)',
-  glassBorderHighlight: '#FF634E',
+  glassBackground: 'rgba(0, 0, 0, 0.45)',
+  glassBackgroundLight: 'rgba(28, 28, 30, 0.72)',
+  glassBackgroundActive: 'rgba(255, 99, 78, 0.22)',
+  glassBorder: 'rgba(255, 255, 255, 0.18)',
+  glassBorderHighlight: accent,
 
-  // A1 Category & Semantic Accents
-  software: '#13A851', // Software Green
-  droneTech: '#2563EB', // Drone / Tech Blue
-  engineering: '#7C3AED', // Engineering Purple
-  foundations: '#D97706', // Foundations Amber
-  mobileTech: '#FF634E', // Mobile Coral
+  software: '#34C759',
+  droneTech: '#007AFF',
+  engineering: '#AF52DE',
+  foundations: '#FF9500',
+  mobileTech: accent,
 
-  // Safety & Hazard Signals
-  safe: '#13A851', // Software Green
-  safeGlow: 'rgba(19, 168, 81, 0.35)',
-  hazardLow: '#D97706', // Amber
-  hazardMedium: '#F97316', // Orange
-  hazardHigh: '#EF4444', // Red
-  hazardHighGlow: 'rgba(239, 68, 68, 0.45)',
+  safe: '#34C759',
+  safeGlow: 'rgba(52, 199, 89, 0.35)',
+  hazardLow: '#FF9500',
+  hazardMedium: '#FF9F0A',
+  hazardHigh: '#FF3B30',
+  hazardHighGlow: 'rgba(255, 59, 48, 0.45)',
 
-  // High Contrast Typography
-  textPrimary: '#FFFFFF',
-  textSecondary: '#E2E8F0',
-  textMuted: '#90A1B9',
-  textDark: '#171717',
-  textDarkSecondary: '#525252',
-  textDarkMuted: '#737373',
-  textInverse: '#0A0E11',
+  textPrimary: Platform.select({
+    ios: Color.ios.label,
+    android: Color.android.dynamic.onSurface,
+    default: '#ffffff',
+  })!,
+  textSecondary: Platform.select({
+    ios: Color.ios.secondaryLabel,
+    android: Color.android.dynamic.onSurfaceVariant,
+    default: '#ebebf5',
+  })!,
+  textMuted: Platform.select({
+    ios: Color.ios.tertiaryLabel,
+    android: Color.android.dynamic.onSurfaceVariant,
+    default: '#8e8e93',
+  })!,
+  textDark: '#000000',
+  textDarkSecondary: '#3C3C43',
+  textDarkMuted: '#8E8E93',
+  textInverse: '#FFFFFF',
 
-  // AI & Voice Status Indicators
-  listening: '#FF634E',
-  thinking: '#7C3AED',
-  speaking: '#13A851',
-  error: '#EF4444',
-  idle: '#90A1B9',
+  listening: accent,
+  thinking: '#AF52DE',
+  speaking: '#34C759',
+  error: '#FF3B30',
+  idle: '#8E8E93',
 };
-
-// Brutalist tactile shadow helpers
-export const brutalistShadow = {
-  sm: {
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  md: {
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 5,
-  },
-  lg: {
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 8,
-  },
-};
-

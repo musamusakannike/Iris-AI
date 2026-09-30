@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Volume2, X, AlertTriangle, Radio } from 'lucide-react-native';
+import { View, Text } from 'react-native';
+import { Host, Button, Row } from '@expo/ui';
+import { GlassSurface } from './glass-surface';
 import { colors } from '../theme/colors';
 import { VisionResponse, AssistiveMode } from '../services/api';
 import { hapticService } from '../services/haptics';
@@ -31,258 +32,88 @@ export const SpeechBanner: React.FC<SpeechBannerProps> = ({
   const isHazard =
     description?.hazardLevel === 'medium' ||
     description?.hazardLevel === 'high' ||
-    (displayText.toLowerCase().includes('danger') || displayText.toLowerCase().includes('hazard') || displayText.toLowerCase().includes('caution'));
+    displayText.toLowerCase().includes('danger') ||
+    displayText.toLowerCase().includes('hazard') ||
+    displayText.toLowerCase().includes('caution');
 
   const isLowHazard = description?.hazardLevel === 'low';
 
-  const handleReplay = () => {
-    hapticService.tap();
-    onReplay();
-  };
-
-  const handleClose = () => {
-    hapticService.tap();
-    onClose();
-  };
-
-  // Determine top border stripe color based on mode and hazard level
-  const getTopBorderColor = () => {
-    if (isHazard) return colors.hazardHigh;
-    if (isLowHazard) return colors.hazardLow;
-    switch (currentMode) {
-      case 'read':
-        return colors.droneTech;
-      case 'color':
-        return colors.engineering;
-      case 'hazard':
-        return colors.hazardHigh;
-      case 'ask':
-        return colors.software;
-      case 'explore':
-      default:
-        return colors.primary;
-    }
-  };
+  const accent = isHazard
+    ? colors.systemRed
+    : isLowHazard
+      ? colors.systemOrange
+      : colors.accent;
 
   return (
-    <View
-      style={[
-        styles.container,
-        { borderTopColor: getTopBorderColor() },
-        isHazard && styles.hazardGlow,
-      ]}
+    <GlassSurface
+      colorScheme="light"
+      style={{
+        marginHorizontal: 16,
+        marginBottom: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: accent,
+      }}
     >
-      {/* Top Header Row with Badges and Close */}
-      <View style={styles.headerRow}>
-        <View style={styles.badgeRow}>
-          {/* Mode Tag */}
-          <View
-            style={[
-              styles.modeBadge,
-              { backgroundColor: getTopBorderColor() },
-            ]}
-          >
-            <Text style={styles.modeBadgeText}>
-              {currentMode.toUpperCase()}
-            </Text>
-          </View>
-
-          {/* Gemini Live Streaming Indicator */}
-          {hasLiveText && isLiveStreaming && (
-            <View style={styles.liveStreamBadge}>
-              <Radio size={11} color="#FFFFFF" />
-              <Text style={styles.liveStreamBadgeText}>GEMINI LIVE</Text>
-            </View>
-          )}
-
-          {isHazard && (
-            <View style={styles.hazardBadge}>
-              <AlertTriangle size={12} color="#FFFFFF" />
-              <Text style={styles.hazardBadgeText}>HAZARD</Text>
-            </View>
-          )}
-          {isLowHazard && (
-            <View style={styles.cautionBadge}>
-              <AlertTriangle size={12} color="#0A0E11" />
-              <Text style={styles.cautionBadgeText}>CAUTION</Text>
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel="Close spoken description"
-          onPress={handleClose}
-          style={styles.closeButton}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <View
+          style={{
+            backgroundColor: accent,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: 6,
+            borderCurve: 'continuous',
+          }}
         >
-          <X size={18} color={colors.textDarkSecondary} />
-        </TouchableOpacity>
+          <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 }}>
+            {currentMode.toUpperCase()}
+            {hasLiveText && isLiveStreaming ? '  ·  LIVE' : ''}
+            {isHazard ? '  ·  HAZARD' : ''}
+          </Text>
+        </View>
+        <Host matchContents>
+          <Button
+            label="Close"
+            variant="text"
+            onPress={() => {
+              hapticService.tap();
+              onClose();
+            }}
+          />
+        </Host>
       </View>
 
-      {/* Main Spoken Text */}
       <Text
-        style={styles.spokenText}
-        accessible={true}
+        selectable
+        style={{
+          marginTop: 10,
+          fontSize: 17,
+          lineHeight: 24,
+          fontWeight: '600',
+          color: colors.textDark,
+        }}
         accessibilityLabel={`Spoken description: ${displayText}`}
       >
         {displayText}
-        {hasLiveText && isLiveStreaming && (
-          <Text style={styles.blinkingCursor}> ▍</Text>
-        )}
+        {hasLiveText && isLiveStreaming ? ' ▍' : ''}
       </Text>
 
-      {/* Footer Action Bar (show Listen Again when description complete) */}
-      {description && !isLiveStreaming && (
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel="Listen again"
-            accessibilityHint="Repeats the audio description out loud"
-            activeOpacity={0.85}
-            onPress={handleReplay}
-            style={styles.replayButton}
-          >
-            <Volume2 size={15} color="#0A0E11" />
-            <Text style={styles.replayText}>LISTEN AGAIN</Text>
-          </TouchableOpacity>
+      {description && !isLiveStreaming ? (
+        <View style={{ marginTop: 10 }}>
+          <Host matchContents>
+            <Row>
+              <Button
+                label="Listen Again"
+                variant="filled"
+                onPress={() => {
+                  hapticService.tap();
+                  onReplay();
+                }}
+              />
+            </Row>
+          </Host>
         </View>
-      )}
-    </View>
+      ) : null}
+    </GlassSurface>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    borderTopWidth: 5,
-    borderRadius: 4,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 6,
-  },
-  hazardGlow: {
-    borderColor: colors.hazardHigh,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  modeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  modeBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  liveStreamBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0D9488', // Emerald / Teal live badge
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 2,
-    gap: 4,
-  },
-  liveStreamBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  hazardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.hazardHigh,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 2,
-    gap: 4,
-  },
-  hazardBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  cautionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.hazardLow,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 2,
-    gap: 4,
-  },
-  cautionBadgeText: {
-    color: '#0A0E11',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  spokenText: {
-    fontSize: 16,
-    lineHeight: 23,
-    fontWeight: '700',
-    color: '#171717',
-    marginBottom: 8,
-  },
-  blinkingCursor: {
-    color: colors.primary,
-    fontWeight: '900',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 10,
-    marginTop: 4,
-  },
-  replayButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 3,
-  },
-  replayText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    color: '#0A0E11',
-  },
-});

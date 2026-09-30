@@ -1,34 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Pressable,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Animated, Easing } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { router } from 'expo-router';
+import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Flashlight,
-  FlashlightOff,
-  HelpCircle,
-  History,
-  Settings,
-  Mic,
-  Eye,
-  Radio,
-  Volume2,
-  Square,
-  Sparkles,
-} from 'lucide-react-native';
+import { Host, Button, Column, Text as UIText } from '@expo/ui';
+import { Image } from 'expo-image';
 import { GlassSurface } from '../components/glass-surface';
 import { ModeSelector } from '../components/mode-selector';
-import { VoicePulseIndicator } from '../components/voice-pulse-indicator';
-import { SpeechBanner } from '../components/speech-banner';
-import { ActionButton } from '../components/action-button';
 import { colors } from '../theme/colors';
 import { useIrisStore } from '../store/useIrisStore';
 import { apiService, AssistiveMode } from '../services/api';
@@ -36,23 +14,111 @@ import { speechService } from '../services/speech';
 import { hapticService } from '../services/haptics';
 import { irisWebSocket } from '../services/websocket';
 
-// Try importing ExpoSpeechRecognitionModule safely
 let ExpoSpeechRecognitionModule: any = null;
 try {
   const mod = require('expo-speech-recognition');
   ExpoSpeechRecognitionModule = mod.ExpoSpeechRecognitionModule;
 } catch {
-  // Graceful fallback if native speech recognition not compiled
+  // native speech recognition optional
 }
+
+const CIRCLE_BG = 'rgba(255,255,255,0.08)';
+const CIRCLE_BORDER = 'rgba(255,255,255,0.22)';
+
+/* ---------- Small building blocks ---------- */
+
+function Icon({ name, size = 22, tint = '#FFFFFF' }: { name: string; size?: number; tint?: string }) {
+  return <Image source={`sf:${name}`} style={{ width: size, height: size }} tintColor={tint} />;
+}
+
+function IconButton({
+  icon,
+  label,
+  onPress,
+  tint,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  tint?: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => ({
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: pressed ? 'rgba(255,255,255,0.16)' : 'transparent',
+      })}
+    >
+      <Icon name={icon} tint={tint} />
+    </Pressable>
+  );
+}
+
+function ActionCircle({
+  icon,
+  label,
+  active,
+  activeColor,
+  onPress,
+  accessibilityLabel,
+  accessibilityHint,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+  activeColor: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ selected: !!active }}
+      onPress={onPress}
+      style={({ pressed }) => ({ alignItems: 'center', gap: 6, opacity: pressed ? 0.7 : 1 })}
+    >
+      <View
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: active ? activeColor : CIRCLE_BG,
+          borderWidth: 1,
+          borderColor: active ? activeColor : CIRCLE_BORDER,
+        }}
+      >
+        <Icon name={icon} size={26} tint={active ? '#000000' : '#FFFFFF'} />
+      </View>
+      <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/* ---------- Screen ---------- */
 
 export default function IrisHomeScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [speechPromptText, setSpeechPromptText] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const speechTextRef = useRef('');
   const lastTapRef = useRef<number>(0);
-  const liveScanTimerRef = useRef<any>(null);
+  const liveScanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const menuAnim = useRef(new Animated.Value(0)).current;
 
   const {
     activeMode,
@@ -60,7 +126,6 @@ export default function IrisHomeScreen() {
     aiState,
     setAiState,
     isLiveScanning,
-    isGeminiLiveStreaming,
     liveStreamingTranscript,
     appendLiveStreamingTranscript,
     clearLiveStreamingTranscript,
@@ -74,15 +139,13 @@ export default function IrisHomeScreen() {
     stopSpeaking,
   } = useIrisStore();
 
-  // Announce welcome message on mount and connect WebSocket
   useEffect(() => {
     irisWebSocket.connect();
     speechService.announce(
-      'Welcome to IRIS AI. Camera is active with Gemini Live. Tap Describe or turn on Live for continuous spatial guidance.'
+      'Welcome to IRIS AI. Tap Describe, or turn on Live for continuous guidance.'
     );
   }, []);
 
-  // Listen to WebSocket AI descriptions, streaming chunks, and hazard alerts
   useEffect(() => {
     const unsubscribe = irisWebSocket.subscribe({
       onTranscriptionChunk: (chunk, fullText) => {
@@ -103,42 +166,40 @@ export default function IrisHomeScreen() {
         hapticService.tap();
       },
     });
-
     return () => {
       unsubscribe();
     };
   }, []);
 
-  // Continuous Gemini Live Scan Loop (1 FPS as specified by Live API)
+  // Animate the top dropdown
   useEffect(() => {
-    if (isLiveScanning) {
-      const runContinuousScan = async () => {
-        if (isProcessing) return;
-        try {
-          await captureAndAnalyze(activeMode, undefined, true);
-        } catch {}
-      };
+    Animated.timing(menuAnim, {
+      toValue: menuOpen ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [menuOpen]);
 
-      runContinuousScan();
-      liveScanTimerRef.current = setInterval(runContinuousScan, 1200);
-    } else {
-      if (liveScanTimerRef.current) {
-        clearInterval(liveScanTimerRef.current);
-        liveScanTimerRef.current = null;
-      }
-    }
+  // Speech recognition listeners: registered once, cleaned up on unmount
+  useEffect(() => {
+    if (!ExpoSpeechRecognitionModule?.addListener) return;
+    const subs = [
+      ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+        const transcript = event?.results?.[0]?.transcript;
+        if (transcript) speechTextRef.current = transcript;
+      }),
+      ExpoSpeechRecognitionModule.addListener('end', () => {
+        setIsListening(false);
+        const text = speechTextRef.current.trim();
+        speechTextRef.current = '';
+        if (text) captureAndAnalyze('ask', text);
+        else setAiState('idle');
+      }),
+    ];
+    return () => subs.forEach((s: any) => s?.remove?.());
+  }, []);
 
-    return () => {
-      if (liveScanTimerRef.current) {
-        clearInterval(liveScanTimerRef.current);
-        liveScanTimerRef.current = null;
-      }
-    };
-  }, [isLiveScanning, activeMode, isProcessing]);
-
-  /**
-   * Capture snapshot and analyze with specified mode
-   */
   const captureAndAnalyze = useCallback(
     async (mode: AssistiveMode, query?: string, isStream = false) => {
       if (!cameraRef.current) return;
@@ -157,10 +218,7 @@ export default function IrisHomeScreen() {
           shutterSound: false,
         });
 
-        if (!photo?.base64) {
-          throw new Error('Could not capture frame');
-        }
-
+        if (!photo?.base64) throw new Error('Could not capture frame');
         const base64Data = photo.base64;
 
         if (query && irisWebSocket.getStatus() === 'connected') {
@@ -173,17 +231,13 @@ export default function IrisHomeScreen() {
           return;
         }
 
-        // Send via REST API fallback
-        let result;
-        if (query) {
-          result = await apiService.askQuestion(base64Data, query);
-        } else {
-          result = await apiService.analyzeScene(base64Data, mode);
-        }
+        const result = query
+          ? await apiService.askQuestion(base64Data, query)
+          : await apiService.analyzeScene(base64Data, mode);
 
         setCurrentDescription(result);
         setIsProcessing(false);
-      } catch (err: any) {
+      } catch (err) {
         console.warn('Capture & analyze error:', err);
         setIsProcessing(false);
         setAiState('error');
@@ -191,43 +245,57 @@ export default function IrisHomeScreen() {
         speechService.announce('Sorry, unable to analyze right now. Please try again.');
       }
     },
-    [cameraRef]
+    []
   );
 
-  /**
-   * Handle single button tap to describe scene
-   */
+  useEffect(() => {
+    if (isLiveScanning) {
+      const runContinuousScan = async () => {
+        if (isProcessing) return;
+        try {
+          await captureAndAnalyze(activeMode, undefined, true);
+        } catch {}
+      };
+      runContinuousScan();
+      liveScanTimerRef.current = setInterval(runContinuousScan, 1200);
+    } else if (liveScanTimerRef.current) {
+      clearInterval(liveScanTimerRef.current);
+      liveScanTimerRef.current = null;
+    }
+
+    return () => {
+      if (liveScanTimerRef.current) {
+        clearInterval(liveScanTimerRef.current);
+        liveScanTimerRef.current = null;
+      }
+    };
+  }, [isLiveScanning, activeMode, isProcessing, captureAndAnalyze]);
+
   const handleDescribePress = () => {
     if (isProcessing) return;
+    setMenuOpen(false);
     captureAndAnalyze(activeMode);
   };
 
-  /**
-   * Handle double tap anywhere on viewfinder
-   */
   const handleViewfinderDoubleTap = () => {
+    if (menuOpen) setMenuOpen(false);
     const now = Date.now();
     if (now - lastTapRef.current < 400) {
-      // Double tap detected
       hapticService.tap();
       handleDescribePress();
     }
     lastTapRef.current = now;
   };
 
-  /**
-   * Start / stop voice query speech recognition
-   */
   const handleMicPress = async () => {
+    setMenuOpen(false);
+
     if (isListening) {
-      // Stop listening
       setIsListening(false);
       setAiState('idle');
-      if (ExpoSpeechRecognitionModule) {
-        try {
-          await ExpoSpeechRecognitionModule.stop();
-        } catch {}
-      }
+      try {
+        await ExpoSpeechRecognitionModule?.stop();
+      } catch {}
       return;
     }
 
@@ -235,6 +303,7 @@ export default function IrisHomeScreen() {
     speechService.announce('Listening. Ask your question now.');
     setIsListening(true);
     setAiState('listening');
+    speechTextRef.current = '';
 
     if (ExpoSpeechRecognitionModule) {
       try {
@@ -245,20 +314,6 @@ export default function IrisHomeScreen() {
             interimResults: true,
             maxAlternatives: 1,
           });
-
-          ExpoSpeechRecognitionModule.addListener?.('onSpeechResults', (event: any) => {
-            const transcript = event.results?.[0];
-            if (transcript) {
-              setSpeechPromptText(transcript);
-            }
-          });
-
-          ExpoSpeechRecognitionModule.addListener?.('onSpeechEnd', () => {
-            setIsListening(false);
-            if (speechPromptText) {
-              captureAndAnalyze('ask', speechPromptText);
-            }
-          });
           return;
         }
       } catch (err) {
@@ -266,541 +321,267 @@ export default function IrisHomeScreen() {
       }
     }
 
-    // Fallback simulated voice question after 2.5s
     setTimeout(() => {
       setIsListening(false);
       captureAndAnalyze('ask', 'What is directly in front of me?');
     }, 2500);
   };
 
-  // 1. Camera Permissions Guard
   if (!permission) {
     return (
-      <View style={styles.permissionContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.permissionText}>Loading camera...</Text>
+      <View style={{ flex: 1, backgroundColor: colors.systemBackground, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator />
       </View>
     );
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.permissionContainer}>
-        <Eye size={64} color={colors.primary} style={{ marginBottom: 20 }} />
-        <Text style={styles.permissionTitle}>Camera Access Needed</Text>
-        <Text style={styles.permissionDescription}>
-          IRIS AI needs camera access to see your surroundings, read text, and detect hazards in real-time.
-        </Text>
-        <ActionButton
-          label="Grant Camera Access"
-          onPress={requestPermission}
-          variant="primary"
-          style={{ width: '100%', marginTop: 24 }}
-        />
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: colors.systemBackground, justifyContent: 'center', padding: 24 }}
+      >
+        <Host matchContents>
+          <Column>
+            <UIText textStyle={{ fontSize: 28, fontWeight: '700', textAlign: 'center' }}>
+              Camera Access Needed
+            </UIText>
+            <UIText textStyle={{ fontSize: 16, textAlign: 'center', color: '#8E8E93' }}>
+              IRIS needs the camera to describe surroundings, read text, and detect hazards.
+            </UIText>
+            <Button label="Grant Camera Access" variant="filled" onPress={requestPermission} />
+          </Column>
+        </Host>
       </SafeAreaView>
     );
   }
 
+  const bannerText =
+    isLiveScanning && liveStreamingTranscript
+      ? liveStreamingTranscript
+      : currentDescription?.spokenSummary;
+
+  const menuItems = [
+    { href: '/guide', icon: 'questionmark.circle', label: 'How to use' },
+    { href: '/history', icon: 'clock.arrow.circlepath', label: 'History' },
+    { href: '/settings', icon: 'gearshape', label: 'Settings' },
+  ] as const;
+
   return (
-    <View style={styles.container}>
-      {/* Fullscreen Camera Viewfinder */}
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* Camera */}
       <Pressable
-        style={StyleSheet.absoluteFill}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         onPress={handleViewfinderDoubleTap}
-        accessible={true}
+        accessible
         accessibilityRole="imagebutton"
         accessibilityLabel="Camera viewfinder. Double tap to describe current scene."
       >
         <CameraView
           ref={cameraRef}
-          style={StyleSheet.absoluteFill}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           facing="back"
           enableTorch={torchOn}
           autofocus="on"
         />
-
-        {/* Technical Viewfinder Corner Accents (Academy Industrial Aesthetic) */}
-        <View style={styles.viewfinderOverlay} pointerEvents="none">
-          <View style={[styles.cornerBracket, styles.cornerTL]} />
-          <View style={[styles.cornerBracket, styles.cornerTR]} />
-          <View style={[styles.cornerBracket, styles.cornerBL]} />
-          <View style={[styles.cornerBracket, styles.cornerBR]} />
-        </View>
       </Pressable>
 
-      {/* Top HUD: Academy Tech Bar + Actions + Mode Selector */}
-      <SafeAreaView style={styles.topHudContainer} edges={['top']}>
-        {/* Technical Ruler Ticks Line */}
-        <View style={styles.rulerBar}>
-          <View style={styles.rulerTicksRow}>
-            {[...Array(24)].map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.rulerTick,
-                  i % 4 === 0 ? styles.rulerTickMajor : styles.rulerTickMinor,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Main Top Action Header */}
-        <View style={styles.topBar}>
-          {/* Logo & Hub Status Badge */}
-          <View style={styles.logoRow}>
-            <View style={styles.statusIndicator}>
-              <Text style={styles.logoText}>IRIS</Text>
-              <View style={styles.logoBadge}>
-                <Text style={styles.logoBadgeText}>AI</Text>
+      {/* Top area */}
+      <SafeAreaView pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <GlassSurface
+          isInteractive
+          style={{
+            marginHorizontal: 16,
+            marginTop: 8,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 }}>IRIS</Text>
+            {isLiveScanning ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.systemGreen }} />
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', letterSpacing: 0.8 }}>LIVE</Text>
               </View>
-            </View>
-            {isLiveScanning && (
-              <View style={styles.liveBadge}>
-                <Radio size={10} color="#FFFFFF" />
-                <Text style={styles.liveBadgeText}>GEMINI LIVE</Text>
-              </View>
-            )}
+            ) : null}
           </View>
 
-          {/* Quick HUD Action Buttons */}
-          <View style={styles.hudActions}>
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel={`Flashlight ${torchOn ? 'on' : 'off'}`}
-              accessibilityHint="Toggles camera light to illuminate dark scenes"
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <IconButton
+              icon={torchOn ? 'flashlight.on.fill' : 'flashlight.off.fill'}
+              label={`Flashlight ${torchOn ? 'on' : 'off'}`}
+              tint={torchOn ? (colors.accent as string) : '#FFFFFF'}
               onPress={toggleTorch}
-              style={[styles.hudButton, torchOn && styles.hudButtonActive]}
-            >
-              {torchOn ? (
-                <Flashlight size={18} color="#0A0E11" />
-              ) : (
-                <FlashlightOff size={18} color="#FFFFFF" />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel="How to use guide"
-              accessibilityHint="Opens voice-narrated tutorial"
-              onPress={() => router.push('/guide')}
-              style={styles.hudButton}
-            >
-              <HelpCircle size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel="Scan history"
-              accessibilityHint="View past descriptions and questions"
-              onPress={() => router.push('/history')}
-              style={styles.hudButton}
-            >
-              <History size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-              accessibilityHint="Adjust speech speed and accessibility preferences"
-              onPress={() => router.push('/settings')}
-              style={styles.hudButton}
-            >
-              <Settings size={18} color="#FFFFFF" />
-            </TouchableOpacity>
+            />
+            <IconButton
+              icon={menuOpen ? 'xmark' : 'ellipsis'}
+              label={menuOpen ? 'Close menu' : 'Open menu'}
+              onPress={() => setMenuOpen((v) => !v)}
+            />
           </View>
-        </View>
+        </GlassSurface>
 
-        {/* Mode Selector (Category Pills) */}
+        {/* Dropdown */}
+        {menuOpen ? (
+          <Animated.View
+            style={{
+              alignSelf: 'flex-end',
+              marginRight: 16,
+              marginTop: 8,
+              opacity: menuAnim,
+              transform: [
+                { translateY: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) },
+                { scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+              ],
+            }}
+          >
+            <GlassSurface isInteractive style={{ minWidth: 200, paddingVertical: 6 }}>
+              {menuItems.map((item, i) => (
+                <Link key={item.href} href={item.href} asChild>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                    onPress={() => setMenuOpen(false)}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 13,
+                      backgroundColor: pressed ? 'rgba(255,255,255,0.12)' : 'transparent',
+                      borderTopWidth: i === 0 ? 0 : 0.5,
+                      borderTopColor: 'rgba(255,255,255,0.15)',
+                    })}
+                  >
+                    <Icon name={item.icon} size={20} />
+                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '500' }}>{item.label}</Text>
+                  </Pressable>
+                </Link>
+              ))}
+            </GlassSurface>
+          </Animated.View>
+        ) : null}
+
         <ModeSelector activeMode={activeMode} onSelectMode={setActiveMode} />
       </SafeAreaView>
 
-      {/* Center/Bottom Overlay Deck */}
-      <View style={styles.bottomDeck}>
-        {/* Floating Spoken Subtitle Banner */}
-        <SpeechBanner
-          description={currentDescription}
-          liveStreamingText={liveStreamingTranscript}
-          isLiveStreaming={isLiveScanning && isGeminiLiveStreaming}
-          activeMode={activeMode}
-          onReplay={() => {
-            if (currentDescription?.spokenSummary) {
-              speakDescription(currentDescription.spokenSummary);
-            }
-          }}
-          onClose={() => {
-            clearCurrentDescription();
-            clearLiveStreamingTranscript();
-          }}
-        />
-
-        {/* Primary Controls Row */}
-        <SafeAreaView edges={['bottom']} style={styles.controlsRow}>
-          {/* Continuous Gemini Live Scan Toggle */}
-          <TouchableOpacity
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel={`Gemini live scan: ${isLiveScanning ? 'active' : 'inactive'}`}
-            accessibilityHint="Continuously streams camera and voice with Gemini Live"
-            activeOpacity={0.8}
-            onPress={toggleLiveScanning}
-            style={[
-              styles.auxButton,
-              isLiveScanning ? styles.liveButtonActive : styles.liveButtonInactive,
-            ]}
-          >
-            <Radio
-              size={18}
-              color={isLiveScanning ? '#FFFFFF' : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.auxText,
-                isLiveScanning ? { color: '#FFFFFF' } : { color: colors.textSecondary },
-              ]}
+      {/* Bottom area */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10 }}>
+        {/* Compact caption */}
+        {bannerText ? (
+          <View style={{ paddingHorizontal: 12, marginBottom: 8 }}>
+            <GlassSurface
+              isInteractive
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                paddingLeft: 16,
+                paddingRight: 8,
+                paddingVertical: 8,
+              }}
             >
-              {isLiveScanning ? 'LIVE ON' : 'GEMINI LIVE'}
-            </Text>
-          </TouchableOpacity>
+              <Pressable
+                style={{ flex: 1 }}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss description"
+                onPress={() => {
+                  clearCurrentDescription();
+                  clearLiveStreamingTranscript();
+                }}
+              >
+                <Text numberOfLines={2} style={{ color: '#FFFFFF', fontSize: 16, lineHeight: 22 }}>
+                  {bannerText}
+                </Text>
+              </Pressable>
+              <IconButton
+                icon="speaker.wave.2.fill"
+                label="Replay description"
+                onPress={() => {
+                  if (currentDescription?.spokenSummary) speakDescription(currentDescription.spokenSummary);
+                }}
+              />
+            </GlassSurface>
+          </View>
+        ) : null}
 
-          {/* Giant Describe Scene Button (A1 Academy Primary CTA) */}
-          <TouchableOpacity
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel="Describe scene right now"
-            accessibilityHint="Analyzes the camera view and speaks out loud"
-            activeOpacity={0.85}
-            onPress={handleDescribePress}
-            disabled={isProcessing}
-            style={[
-              styles.mainDescribeButton,
-              isProcessing && styles.mainDescribeButtonProcessing,
-            ]}
+        {/* Action bar */}
+        <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+          <GlassSurface
+            isInteractive
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              justifyContent: 'space-around',
+              paddingTop: 14,
+              paddingBottom: 12,
+              paddingHorizontal: 12,
+            }}
           >
-            <VoicePulseIndicator state={aiState} size={48} />
-            <View style={styles.describeTextColumn}>
-              <Text style={styles.mainDescribeTitle}>
-                {isProcessing ? 'ANALYZING...' : 'DESCRIBE SCENE'}
-              </Text>
-              <Text style={styles.mainDescribeSubtitle}>
-                {activeMode.toUpperCase()} • TAP TO HEAR
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Ask Iris Voice Mic Button */}
-          <TouchableOpacity
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel={isListening ? 'Stop listening' : 'Ask Iris voice question'}
-            accessibilityHint="Speak a question about what is in front of you"
-            activeOpacity={0.8}
-            onPress={handleMicPress}
-            style={[
-              styles.auxButton,
-              isListening ? styles.micButtonActive : styles.micButtonInactive,
-            ]}
-          >
-            <Mic
-              size={20}
-              color={isListening ? '#0A0E11' : colors.primary}
+            <ActionCircle
+              icon="waveform"
+              label="Live"
+              active={isLiveScanning}
+              activeColor={colors.systemGreen as string}
+              onPress={() => {
+                hapticService.tap();
+                toggleLiveScanning();
+              }}
+              accessibilityLabel={isLiveScanning ? 'Live guidance on' : 'Live guidance off'}
+              accessibilityHint="Toggles continuous scene guidance"
             />
-            <Text
-              style={[
-                styles.auxText,
-                isListening ? { color: '#0A0E11' } : { color: colors.primary },
-              ]}
+
+            {/* Describe (hero) */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Describe scene"
+              accessibilityHint="Captures the camera view and describes it"
+              onPress={handleDescribePress}
+              disabled={isProcessing}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 2,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              })}
             >
-              {isListening ? 'LISTENING' : 'ASK VOICE'}
-            </Text>
-          </TouchableOpacity>
+              <View
+                style={{
+                  width: 84,
+                  height: 84,
+                  borderRadius: 42,
+                  backgroundColor: '#FFFFFF',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 4,
+                  borderColor: 'rgba(255,255,255,0.35)',
+                  opacity: isProcessing ? 0.85 : 1,
+                }}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#000000" size="large" />
+                ) : (
+                  <Icon name="eye" size={38} tint="#000000" />
+                )}
+              </View>
+              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Describe</Text>
+            </Pressable>
+
+            <ActionCircle
+              icon="mic.fill"
+              label={isListening ? 'Listening' : 'Ask'}
+              active={isListening}
+              activeColor={colors.accent as string}
+              onPress={handleMicPress}
+              accessibilityLabel={isListening ? 'Listening. Tap to stop' : 'Ask a question'}
+              accessibilityHint="Ask something about what the camera sees"
+            />
+          </GlassSurface>
         </SafeAreaView>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  permissionContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  permissionTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 12,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  permissionDescription: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  permissionText: {
-    color: '#FFFFFF',
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  viewfinderOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 24,
-    justifyContent: 'space-between',
-  },
-  cornerBracket: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderColor: colors.primary,
-  },
-  cornerTL: {
-    top: 140,
-    left: 20,
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
-  },
-  cornerTR: {
-    top: 140,
-    right: 20,
-    borderTopWidth: 3,
-    borderRightWidth: 3,
-  },
-  cornerBL: {
-    bottom: 180,
-    left: 20,
-    borderBottomWidth: 3,
-    borderLeftWidth: 3,
-  },
-  cornerBR: {
-    bottom: 180,
-    right: 20,
-    borderBottomWidth: 3,
-    borderRightWidth: 3,
-  },
-  topHudContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  rulerBar: {
-    width: '100%',
-    height: 12,
-    backgroundColor: '#0A0E11',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 99, 78, 0.4)',
-  },
-  rulerTicksRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rulerTick: {
-    backgroundColor: colors.primary,
-  },
-  rulerTickMajor: {
-    width: 2,
-    height: 8,
-  },
-  rulerTickMinor: {
-    width: 1,
-    height: 4,
-    opacity: 0.7,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginTop: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 4,
-    backgroundColor: '#0A0E11',
-    borderWidth: 2,
-    borderColor: '#2C3742',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 1.5,
-  },
-  logoBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 2,
-  },
-  logoBadgeText: {
-    color: '#0A0E11',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.safe,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  liveBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  hudActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  hudButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 3,
-    backgroundColor: '#181F26',
-    borderWidth: 1.5,
-    borderColor: '#2C3742',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  hudButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: '#0A0E11',
-  },
-  bottomDeck: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 8,
-  },
-  mainDescribeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 4,
-    backgroundColor: colors.primary, // A1 Primary coral
-    borderWidth: 2.5,
-    borderColor: '#0A0E11',
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 6,
-    gap: 10,
-    minHeight: 68,
-  },
-  mainDescribeButtonProcessing: {
-    backgroundColor: colors.primaryDark,
-  },
-  describeTextColumn: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  mainDescribeTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#0A0E11', // A1 contrast black text on primary
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  mainDescribeSubtitle: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#381611',
-    marginTop: 2,
-    letterSpacing: 0.6,
-  },
-  auxButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#0A0E11',
-    gap: 4,
-    minWidth: 68,
-    minHeight: 68,
-    shadowColor: '#0A0E11',
-    shadowOffset: { width: 2.5, height: 2.5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-  },
-  liveButtonInactive: {
-    backgroundColor: '#181F26',
-    borderColor: '#2C3742',
-  },
-  liveButtonActive: {
-    backgroundColor: colors.safe,
-    borderColor: '#0A0E11',
-  },
-  micButtonInactive: {
-    backgroundColor: '#181F26',
-    borderColor: '#2C3742',
-  },
-  micButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: '#0A0E11',
-  },
-  auxText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-});
-
